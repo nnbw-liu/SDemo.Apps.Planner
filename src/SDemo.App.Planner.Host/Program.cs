@@ -180,7 +180,11 @@ internal static class Program
 
         var registration = new HostRegistration(token);
         widget.Show();
-        widget.Hide();
+        if (hostPresent)
+        {
+            // 宿主负责显示与摆放；这里先建窗再隐藏，避免抢焦点。
+            widget.Hide();
+        }
         var hwnd = (long)widget.Hwnd;
         _ = registration.RegisterQuietly(hwnd);
         widget.Closed += (_, _) => _ = registration.UnregisterQuietly(hwnd);
