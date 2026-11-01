@@ -11,9 +11,14 @@
 dotnet build SDemo.Planner.slnf -c Release
 dotnet test  tests/SDemo.Planner.Tests/SDemo.Planner.Tests.csproj -c Release
 pwsh tools\smoke-mcp.ps1
+pwsh tools\smoke-widget.ps1
+pwsh tools\smoke-calendar-drag.ps1
 
 # 本地跑 UI（临时库，不碰真实数据）
 dotnet run --project src\SDemo.App.Planner.Host -- --db=$env:TEMP\planner-dev.db
+
+# 无 UI 导出 ICS
+dotnet run --project src\SDemo.App.Planner.Host -- --db=$env:TEMP\planner-dev.db --export-ics=$env:TEMP\planner.ics
 
 # 安装进宿主
 pwsh tools\install-planner.ps1

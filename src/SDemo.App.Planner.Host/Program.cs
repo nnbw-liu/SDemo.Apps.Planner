@@ -77,6 +77,24 @@ internal static class Program
             PlannerLog.Warn($"启动清理失败：{ex.Message}");
         }
 
+        var exportPath = GetOption(args, "--export-ics");
+        if (!string.IsNullOrWhiteSpace(exportPath))
+        {
+            try
+            {
+                var full = service.ExportIcsToFile(exportPath);
+                PlannerLog.Info($"ICS 已导出：{full}");
+                Console.WriteLine(full);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                PlannerLog.Error($"ICS 导出失败：{exportPath}", ex);
+                Console.Error.WriteLine(ex.Message);
+                return 4;
+            }
+        }
+
         var mcp = new McpServer(service);
         using var server = new AppServer(token, service, mcp, PlannerConstants.AppId, PlannerConstants.AppVersion);
 

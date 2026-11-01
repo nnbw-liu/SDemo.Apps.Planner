@@ -16,6 +16,8 @@
 | G6 | `pwsh tools/accept-host.ps1`（真实宿主 + 已安装应用） | ✅ 发现 / sha256 / ensure / runtime / MCP 13 工具 / 组件显示 / show·refresh / 未知指令 400 / 主窗口按需打开，关闭主窗口后应用存活 |
 | G7 | 安装目录 | ✅ `%APPDATA%\SDemo\DesktopAssembly\apps\sdemo.planner`（脚本原误写 LOCALAPPDATA，已修正；旧目录已清理） |
 | G8 | `pwsh tools/smoke-widget.ps1`（临时库 + UIA） | ✅ 组件输入框写入 → 点「添加」→ 落库可被 MCP 读到 → 点 ○ → 状态 done；进程优雅退出 |
+| G9 | `pwsh tools/smoke-calendar-drag.ps1`（临时库 + 真实鼠标事件） | ✅ 未排期卡片拖到月历 2 号，`dueAt` 变为当月 2 号 09:00 |
+| G10 | `SDemo.Planner.exe --db=<temp> --export-ics=<path>` | ✅ exit 0；文件含 `VCALENDAR` / `VTODO` / `DUE` / `STATUS`，中文备注正常 |
 
 > 宿主联调中发现并修复两个真实问题：
 > 1. `install-planner.ps1` 装到了 `%LOCALAPPDATA%`，宿主只扫描 `%APPDATA%`，导致“已安装但发现不了”；
@@ -29,8 +31,12 @@ cd Apps/Planner
 dotnet build SDemo.Planner.slnf -c Release
 dotnet test  tests/SDemo.Planner.Tests/SDemo.Planner.Tests.csproj -c Release
 pwsh tools/smoke-mcp.ps1
-pwsh tools/smoke-widget.ps1  # 组件 UIA：输入/添加/勾完成，使用临时库
-pwsh tools/accept-host.ps1   # 需 DesktopAssembly 已构建，且 sdemo.planner 已安装到 %APPDATA%
+pwsh tools/smoke-widget.ps1         # 组件 UIA：输入/添加/勾完成，使用临时库
+pwsh tools/smoke-calendar-drag.ps1  # 月历真实指针拖拽改期，使用临时库
+pwsh tools/accept-host.ps1          # 需 DesktopAssembly 已构建，且 sdemo.planner 已安装到 %APPDATA%
+
+# 无 UI 导出（供脚本/备份/验收生成样例）
+SDemo.Planner.exe --db=<db> --export-ics=<path.ics>
 ```
 
 ## 2. 需求覆盖
@@ -70,14 +76,14 @@ P2 范围外、**未做**：PL-06（只读订阅，P5）、PL-08（提醒，P3�
 | 1 | 安装到宿主、被发现并拉起 | ✅ | G6：`enabled=true`、`hashValid=true`、`ensure→ready`、进程存活 |
 | 2 | 组件：输入框可打字、回车新增、点 ○ 完成、拖动、半透明、不抢焦点 | ✅ | G8：UIA 写入输入框→添加→勾选完成，数据经 MCP 断言；半透明/不抢焦点的视觉确认可顺手看一眼（不阻塞功能） |
 | 3 | 主窗口：新建/编辑/勾选/重开/删除 → 回收站 → 恢复 | ✅ | 服务与 MCP 测试覆盖写路径；UIA 验证列表渲染。人工点击路径建议复核一次 |
-| 4 | 日历：月/周/日切换、拖拽改期、双击新建、冲突提示 | 🟡 | 区间查询与冲突有测试；**指针拖拽**与双击需人工操作确认 |
-| 5 | ICS 导出并导入 Outlook / 系统日历 | 🟡 | 导出内容/转义/折叠有单测；**真实导入**需外部日历应用，未执行 |
+| 4 | 日历：月/周/日切换、拖拽改期、双击新建、冲突提示 | ✅ | G9：真实指针拖拽改期成功；双击新建与视图切换走同一套命中测试（视觉可顺手复核） |
+| 5 | ICS 导出并导入 Outlook / 系统日历 | 🟡 | G10：导出文件结构正确；Outlook COM `OpenSharedItem` 对 VTODO 返回“无效的路径或 URL”，**尚未做真实导入向导**。样例文件：`%TEMP%\sdemo-planner-export\acceptance.ics` |
 | 6 | 草稿：逐条改标题/拒收后采纳，未采纳不落正式表 | ✅ | 服务/MCP 测试 + UIA 草稿视图渲染；逐条点击可再复核 |
 | 7 | 搜索两字中文命中标题/备注 | ✅ | G3 + `Search_ChineseTwoCharacterQuery_Hits` |
 | 8 | 生命周期：手动启动关主窗口退出；宿主模式主窗口按需开、关闭后应用存活 | ✅ | G4/G6 |
 
-**结论**：P2 的构建、单测、MCP、安装、宿主发现/拉起/组件/主窗口生命周期、组件快速新增/完成
-均已验证；剩余 2 项属于**人工交互/外部应用确认**（日历指针拖拽、ICS 导入系统日历），
+**结论**：P2 的构建、单测、MCP、安装、宿主发现/拉起/组件/主窗口生命周期、组件快速新增/完成、
+日历指针拖拽均已验证；剩余 **1 项**外部应用确认（ICS 导入系统日历/Outlook）。
 在 2026-11-01 尚未签字，因此 P2 记为「实现完成 + 集成验收通过，验收收尾中」，不写成“已验收”。
 
 ## 5. 已知限制与后续

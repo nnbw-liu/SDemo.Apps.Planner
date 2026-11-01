@@ -15,6 +15,8 @@
 - 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown|widgets/...`。
 - 宿主联调通过：发现 → sha256 → ensure → runtime → MCP 13 工具 → 组件显示/指令 → 主窗口按需打开。
 - 组件功能冒烟通过：UIA 输入 → 添加 → 勾完成，MCP 断言落库结果（`tools/smoke-widget.ps1`）。
+- 日历拖拽冒烟通过：真实鼠标事件把未排期卡片拖到某日，`dueAt` 断言（`tools/smoke-calendar-drag.ps1`）。
+- 无 UI 导出：`SDemo.Planner.exe --db=<db> --export-ics=<path>`。
 - 验证记录：[docs/p2-verification.md](docs/p2-verification.md)；设计：[docs/planner-design.md](docs/planner-design.md)。
 
 P3 再做：`calendar_*` 工具、提醒（PL-08）、事件跨天显示；P5：outbox 合并、ICS 只读订阅。
@@ -29,7 +31,7 @@ src/SDemo.App.Planner.Mcp        JSON-RPC、工具目录、风险元数据、审
 src/SDemo.App.Planner.Host       WPF（MainWindow / WidgetWindow / 对话框）+ AppServer
 tests/SDemo.Planner.Tests        xunit（存储 / 服务 / MCP）
 deploy/                          app.json + widget.json
-tools/                           install-planner.ps1 / smoke-mcp.ps1 / smoke-widget.ps1 / accept-host.ps1
+tools/                           install-planner.ps1 / smoke-mcp.ps1 / smoke-widget.ps1 / smoke-calendar-drag.ps1 / accept-host.ps1
 ```
 
 ## 命令
@@ -39,6 +41,7 @@ dotnet build SDemo.Planner.slnf -c Release
 dotnet test  tests/SDemo.Planner.Tests/SDemo.Planner.Tests.csproj -c Release
 pwsh tools\smoke-mcp.ps1          # headless + 真实 HTTP 调 13 个工具
 pwsh tools\smoke-widget.ps1       # 组件 UIA：输入/添加/勾完成（临时库）
+pwsh tools\smoke-calendar-drag.ps1 # 月历真实指针拖拽改期（临时库）
 pwsh tools\accept-host.ps1        # 真宿主：发现/ensure/MCP/组件/主窗口（需 Shell 已构建）
 pwsh tools\install-planner.ps1    # 发布到 %APPDATA%\...\apps 并重算 sha256
 ```
