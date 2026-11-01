@@ -8,7 +8,7 @@
 
 ## 现状（2026-11-01）
 
-✅ **P2 已实现**：PL-01~05、PL-07、PL-09~12 + PL-13（搜索）。
+✅ **P2 已实现并验收**：PL-01~05、PL-07、PL-09~12 + PL-13（搜索）。
 - 五件套：`Contracts` / `Storage` / `Core` / `Mcp` / `Host`，`SDemo.Planner.slnf`。
 - 真实 EF migrations（含 FTS5 虚表）+ 软删回收站 + outbox/op-log + MCP 审计。
 - 主窗口：待办 CRUD、日/周/月日历 + 拖拽改期、回收站、草稿审阅、ICS 导出。
@@ -16,6 +16,7 @@
 - 宿主联调通过：发现 → sha256 → ensure → runtime → MCP 13 工具 → 组件显示/指令 → 主窗口按需打开。
 - 组件功能冒烟通过：UIA 输入 → 添加 → 勾完成，MCP 断言落库结果（`tools/smoke-widget.ps1`）。
 - 日历拖拽冒烟通过：真实鼠标事件把未排期卡片拖到某日，`dueAt` 断言（`tools/smoke-calendar-drag.ps1`）。
+- ICS 已实测导入 Outlook：待办默认导出 `VEVENT`（`VTODO` 被 Outlook 忽略），导入后日历可见。
 - 无 UI 导出：`SDemo.Planner.exe --db=<db> --export-ics=<path>`。
 - 验证记录：[docs/p2-verification.md](docs/p2-verification.md)；设计：[docs/planner-design.md](docs/planner-design.md)。
 

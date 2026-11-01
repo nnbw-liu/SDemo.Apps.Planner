@@ -179,6 +179,13 @@ public sealed record DraftAcceptRequest
     public string? ListId { get; init; }
 }
 
+/// <summary>待办在 ICS 里的表示：Calendar 用 VEVENT（Outlook/系统日历能显示），Task 用 VTODO。</summary>
+public enum IcsTodoExportMode
+{
+    Calendar,
+    Task,
+}
+
 public sealed record IcsExportOptions
 {
     public bool IncludeTodos { get; init; } = true;
@@ -189,4 +196,7 @@ public sealed record IcsExportOptions
 
     /// <summary>已完成的待办是否导出（导入后显示为已完成）。</summary>
     public bool IncludeCompleted { get; init; } = true;
+
+    /// <summary>默认 VEVENT：Outlook 的“作为新日历/导入”会忽略 VTODO，导致导入后看不到内容。</summary>
+    public IcsTodoExportMode TodoMode { get; init; } = IcsTodoExportMode.Calendar;
 }

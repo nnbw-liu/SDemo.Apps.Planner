@@ -128,12 +128,14 @@ Mcp 不依赖 WPF；Host 是唯一组合根。应用之间零 `ProjectReference`
 
 ## 8. ICS 导出
 
-- 输出 `VCALENDAR`（`PRODID:-//SDemo//sdemo.planner 0.1.0//CN`、`X-WR-CALNAME`），
-  内含 `VTODO` 与 `VEVENT`。
-- `VTODO`：`UID` = `todo.<id>@sdemo.planner`；`SUMMARY` / `DESCRIPTION` / `DUE`（UTC）/
-  `PRIORITY`（0–4 映射到 1–9）/ `STATUS`（open→NEEDS-ACTION、doing→IN-PROGRESS、
-  done→COMPLETED）/ `COMPLETED` / `CATEGORIES`。
-- `VEVENT`：`UID` = `event.<id>@sdemo.planner`；`DTSTART` / `DTEND`（UTC）/
+- 输出 `VCALENDAR`（`PRODID:-//SDemo//sdemo.planner 0.1.0//CN`、`X-WR-CALNAME`）。
+- **待办默认导出为 `VEVENT`**（ADR-9）：Outlook 的“作为新日历打开/导入”会忽略 `VTODO`，
+  导入后日历里看不到内容；用 `DTSTART` = `dueAt`、`DTEND` = `dueAt + 30min` 导出为日程。
+  无截止时间的待办导出为创建当天的全天事件；完成项 `SUMMARY` 前加 `✓`，
+  原始状态放在 `X-SDEMO-STATUS` / `X-SDEMO-TODO-ID` / `X-SDEMO-REVISION`。
+- 需要任务语义的客户端可设 `IcsExportOptions.TodoMode = Task`，改回 `VTODO`（保留原
+  `DUE` / `STATUS` / `COMPLETED` / `PERCENT-COMPLETE` 写法）。
+- `VEVENT`（事件）：`UID` = `event.<id>@sdemo.planner`；`DTSTART` / `DTEND`（UTC）/
   `LOCATION` / `DESCRIPTION`。
 - 转义 `, ; \` 与换行；长行按 75 octet 折叠（continuation 以空格开头）。
 - **v1 不导出 RRULE**，也没有重复规则编辑；重复日程留给 P5（见 ADR-4）。
@@ -179,6 +181,7 @@ Mcp 不依赖 WPF；Host 是唯一组合根。应用之间零 `ProjectReference`
 | ADR-6 | 来源由 MCP 服务端注入 | provenance 不可伪造；审批/审计都依赖真实来源 |
 | ADR-7 | 回收站 7 天 + 定时清理 | 满足「删除一律软删」，又避免无限增长 |
 | ADR-8 | app 面与 MCP 同端口 | 宿主只需一个 runtime.json；减少一个监听面 |
+| ADR-9 | 待办默认导出为 `VEVENT`，`VTODO` 作为可选任务模式 | Outlook/多数系统日历导入会忽略 VTODO，PL-05 要求导入后能看到内容；保留 Task 模式给支持的客户端 |
 
 ## 12. P2 明确未做
 

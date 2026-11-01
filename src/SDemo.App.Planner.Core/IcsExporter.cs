@@ -6,7 +6,9 @@ namespace SDemo.App.Planner.Core;
 
 /// <summary>
 /// ICS（RFC 5545）导出（PL-05）。v1 只做导出；只读订阅在 P5。
-/// todo → VTODO（dueAt 是截止点）、event → VEVENT（起止区间）；不做 RRULE 编辑。
+/// 待办默认导出为 VEVENT：Outlook 的日历导入会忽略 VTODO，导入后“看不到内容”；
+/// 需要任务语义的客户端可用 <see cref="IcsExportOptions.TodoMode"/> = Task 换回 VTODO。
+/// event → VEVENT（起止区间）；不做 RRULE 编辑。
 /// </summary>
 public static class IcsExporter
 {
@@ -38,37 +40,78 @@ public static class IcsExporter
                     continue;
                 }
 
-                lines.Add("BEGIN:VTODO");
-                lines.Add($"UID:{Escape(todo.Id)}@sdemo.planner");
+                var tags = todoTags.GetValueOrDefault(todo.Id);
+                if (options.TodoMode == IcsTodoExportMode.Task)
+                {
+                    lines.Add("BEGIN:VTODO");
+                    lines.Add($"UID:todo.{Escape(todo.Id)}@sdemo.planner");
+                    lines.Add($"DTSTAMP:{stamp}");
+                    lines.Add($"SUMMARY:{Escape(todo.Title)}");
+
+                    if (!string.IsNullOrWhiteSpace(todo.Notes))
+                    {
+                        lines.Add($"DESCRIPTION:{Escape(todo.Notes)}");
+                    }
+
+                    if (todo.DueAt is { } due)
+                    {
+                        lines.Add($"DUE:{IsoTime.ToIcs(ToOffset(due))}");
+                    }
+
+                    lines.Add($"PRIORITY:{MapPriority(todo.Priority)}");
+                    lines.Add($"STATUS:{MapStatus(todo.Status)}");
+
+                    if (todo.Status == "done" && todo.CompletedAt is { } completed)
+                    {
+                        lines.Add($"COMPLETED:{IsoTime.ToIcs(ToOffset(completed))}");
+                        lines.Add("PERCENT-COMPLETE:100");
+                    }
+
+                    if (tags is { Count: > 0 })
+                    {
+                        lines.Add($"CATEGORIES:{Escape(string.Join(',', tags))}");
+                    }
+
+                    lines.Add("END:VTODO");
+                    continue;
+                }
+
+                lines.Add("BEGIN:VEVENT");
+                lines.Add($"UID:todo.{Escape(todo.Id)}@sdemo.planner");
                 lines.Add($"DTSTAMP:{stamp}");
-                lines.Add($"SUMMARY:{Escape(todo.Title)}");
+                lines.Add($"SUMMARY:{Escape(FormatTodoSummary(todo))}");
+
+                if (todo.DueAt is { } dueAt)
+                {
+                    lines.Add($"DTSTART:{IsoTime.ToIcs(ToOffset(dueAt))}");
+                    lines.Add($"DTEND:{IsoTime.ToIcs(ToOffset(dueAt.AddMinutes(30)))}");
+                }
+                else
+                {
+                    // 没截止时间的待办放到创建当天（全天），保证导入后日历里看得到。
+                    var day = ToOffset(todo.CreatedAt).UtcDateTime.Date;
+                    lines.Add($"DTSTART;VALUE=DATE:{day:yyyyMMdd}");
+                    lines.Add($"DTEND;VALUE=DATE:{day.AddDays(1):yyyyMMdd}");
+                }
 
                 if (!string.IsNullOrWhiteSpace(todo.Notes))
                 {
                     lines.Add($"DESCRIPTION:{Escape(todo.Notes)}");
                 }
 
-                if (todo.DueAt is { } due)
+                var categories = BuildTodoCategories(tags);
+                if (categories.Length > 0)
                 {
-                    lines.Add($"DUE:{IsoTime.ToIcs(ToOffset(due))}");
+                    lines.Add($"CATEGORIES:{Escape(categories)}");
                 }
 
                 lines.Add($"PRIORITY:{MapPriority(todo.Priority)}");
-                lines.Add($"STATUS:{MapStatus(todo.Status)}");
-
-                if (todo.Status == "done" && todo.CompletedAt is { } completed)
-                {
-                    lines.Add($"COMPLETED:{IsoTime.ToIcs(ToOffset(completed))}");
-                    lines.Add("PERCENT-COMPLETE:100");
-                }
-
-                var tags = todoTags.GetValueOrDefault(todo.Id);
-                if (tags is { Count: > 0 })
-                {
-                    lines.Add($"CATEGORIES:{Escape(string.Join(',', tags))}");
-                }
-
-                lines.Add("END:VTODO");
+                lines.Add("STATUS:CONFIRMED");
+                lines.Add("TRANSP:TRANSPARENT");
+                lines.Add($"X-SDEMO-TODO-ID:{Escape(todo.Id)}");
+                lines.Add($"X-SDEMO-STATUS:{Escape(todo.Status)}");
+                lines.Add($"X-SDEMO-REVISION:{todo.Revision}");
+                lines.Add("END:VEVENT");
             }
         }
 
@@ -166,6 +209,19 @@ public static class IcsExporter
         }
 
         return string.Join('\n', parts);
+    }
+
+    private static string FormatTodoSummary(TodoRow todo) =>
+        todo.Status == "done" ? "✓ " + todo.Title : todo.Title;
+
+    private static string BuildTodoCategories(IReadOnlyList<string>? tags)
+    {
+        if (tags is not { Count: > 0 })
+        {
+            return "SDemo待办";
+        }
+
+        return string.Join(',', tags.Concat(new[] { "SDemo待办" }));
     }
 
     private static string MapStatus(string status) => status switch

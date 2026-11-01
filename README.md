@@ -3,7 +3,7 @@
 **sdemo.planner**：待办 + 日历。`todo` 与 `event` 同库不同表；AI 只产草稿，人审阅后入库。
 
 > 本仓是 [SDemo 主仓](https://github.com/nnbw-liu/SDemo) 的子模块（`Apps/Planner`）。
-> 状态：✅ **P2 已实现**（v0.1.0，2026-11-01）；P3 做 `calendar_*` / 提醒，P5 做 ICS 订阅与 outbox 合并。
+> 状态：✅ **P2 已实现并验收**（v0.1.0，2026-11-01）；P3 做 `calendar_*` / 提醒，P5 做 ICS 订阅与 outbox 合并。
 
 ## 快速开始
 
@@ -31,7 +31,7 @@ pwsh tools\install-planner.ps1
 - AI 草稿审阅：逐条采纳 / 改标题 / 拒收，疑似重复提示；草稿不写正式表。
 - 13 个 `todo_*` MCP 工具（Streamable HTTP，Bearer token，风险元数据 + 审计）。
 - 桌面组件：≤8 条未完成待办、快速添加、勾完成、不抢焦点。
-- ICS 导出（VTODO + VEVENT）；中文两字全文搜索（FTS5 + 2-gram）。
+- ICS 导出（待办默认 `VEVENT`，Outlook/系统日历可直接导入；`VTODO` 为可选任务模式）；中文两字全文搜索（FTS5 + 2-gram）。
 
 ## 文档
 

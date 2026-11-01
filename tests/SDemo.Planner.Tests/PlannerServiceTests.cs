@@ -268,12 +268,44 @@ public sealed class PlannerServiceTests
         var ics = host.Service.ExportIcs();
 
         Assert.StartsWith("BEGIN:VCALENDAR", ics);
-        Assert.Contains("BEGIN:VTODO", ics);
+        Assert.DoesNotContain("BEGIN:VTODO", ics);
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(ics, "BEGIN:VEVENT").Count);
         Assert.Contains("SUMMARY:提交周报", ics);
-        Assert.Contains("BEGIN:VEVENT", ics);
+        Assert.Contains("DTSTART:", ics);
+        Assert.Contains("X-SDEMO-TODO-ID:", ics);
         Assert.Contains("SUMMARY:站会", ics);
         Assert.Contains("LOCATION:线上", ics);
         Assert.EndsWith("END:VCALENDAR\r\n", ics);
+    }
+
+    [Fact]
+    public void IcsExport_TaskModeStillEmitsVTodo()
+    {
+        using var host = new TestHost();
+        host.Service.CreateTodos([new TodoCreateInput
+        {
+            Title = "任务模式",
+            DueAt = At(1, 18),
+        }], WriteContext.Manual());
+
+        var ics = host.Service.ExportIcs(new IcsExportOptions { TodoMode = IcsTodoExportMode.Task });
+
+        Assert.Contains("BEGIN:VTODO", ics);
+        Assert.Contains("DUE:", ics);
+        Assert.DoesNotContain("BEGIN:VEVENT", ics);
+    }
+
+    [Fact]
+    public void IcsExport_UndatedTodoBecomesAllDayEvent()
+    {
+        using var host = new TestHost();
+        host.Service.CreateTodos([new TodoCreateInput { Title = "没有截止时间" }], WriteContext.Manual());
+
+        var ics = host.Service.ExportIcs();
+
+        Assert.Contains("BEGIN:VEVENT", ics);
+        Assert.Contains("DTSTART;VALUE=DATE:", ics);
+        Assert.Contains("DTEND;VALUE=DATE:", ics);
     }
 
     [Fact]
