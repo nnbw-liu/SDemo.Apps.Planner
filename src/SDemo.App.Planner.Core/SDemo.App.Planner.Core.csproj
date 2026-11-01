@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 领域服务：待办/日程规则、乐观并发、软删回收站、草稿审阅、ICS 导出、FTS 搜索。 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SDemo.App.Planner.Core</RootNamespace>
+    <AssemblyName>SDemo.App.Planner.Core</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SDemo.App.Planner.Contracts\SDemo.App.Planner.Contracts.csproj" />
+    <ProjectReference Include="..\SDemo.App.Planner.Storage\SDemo.App.Planner.Storage.csproj" />
+  </ItemGroup>
+
+</Project>

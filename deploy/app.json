@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "sdemo.planner",
+  "name": "待办与日历",
+  "version": "0.1.0",
+  "executable": "payload\\SDemo.Planner.exe",
+  "arguments": [],
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "singleInstanceMutex": "SDemo.App.sdemo.planner",
+  "startupTimeoutMs": 8000,
+  "idleTimeoutMs": 300000,
+  "startup": "onDemand",
+  "minHostApiVersion": "1.0",
+  "mcp": {
+    "transport": "http",
+    "path": "/mcp",
+    "port": "runtime",
+    "token": "runtime"
+  }
+}

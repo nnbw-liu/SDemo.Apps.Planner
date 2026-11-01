@@ -1,0 +1,13 @@
+{
+  "solution": {
+    "path": "SDemo.Planner.sln",
+    "projects": [
+      "src\\SDemo.App.Planner.Contracts\\SDemo.App.Planner.Contracts.csproj",
+      "src\\SDemo.App.Planner.Storage\\SDemo.App.Planner.Storage.csproj",
+      "src\\SDemo.App.Planner.Core\\SDemo.App.Planner.Core.csproj",
+      "src\\SDemo.App.Planner.Mcp\\SDemo.App.Planner.Mcp.csproj",
+      "src\\SDemo.App.Planner.Host\\SDemo.App.Planner.Host.csproj",
+      "tests\\SDemo.Planner.Tests\\SDemo.Planner.Tests.csproj"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 组合根 + WPF：主窗口、桌面组件、app 面 HTTP、runtime.json、宿主注册。 -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>SDemo.App.Planner.Host</RootNamespace>
+    <AssemblyName>SDemo.Planner</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SDemo.App.Planner.Contracts\SDemo.App.Planner.Contracts.csproj" />
+    <ProjectReference Include="..\SDemo.App.Planner.Storage\SDemo.App.Planner.Storage.csproj" />
+    <ProjectReference Include="..\SDemo.App.Planner.Core\SDemo.App.Planner.Core.csproj" />
+    <ProjectReference Include="..\SDemo.App.Planner.Mcp\SDemo.App.Planner.Mcp.csproj" />
+  </ItemGroup>
+
+</Project>

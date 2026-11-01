@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 持久化：EF Core + SQLite（真实 migrations）；todo / event / list / tag / links / draft / outbox / audit。 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SDemo.App.Planner.Storage</RootNamespace>
+    <AssemblyName>SDemo.App.Planner.Storage</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <!-- 只用于 `dotnet ef migrations add` 的设计时服务，不进入产品依赖。 -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SDemo.App.Planner.Contracts\SDemo.App.Planner.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

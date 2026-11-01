@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 纯核心测试：存储 / 领域规则 / ICS / FTS / MCP JSON-RPC（不含 WPF）。 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>SDemo.Planner.Tests</RootNamespace>
+    <AssemblyName>SDemo.Planner.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SDemo.App.Planner.Contracts\SDemo.App.Planner.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\SDemo.App.Planner.Storage\SDemo.App.Planner.Storage.csproj" />
+    <ProjectReference Include="..\..\src\SDemo.App.Planner.Core\SDemo.App.Planner.Core.csproj" />
+    <ProjectReference Include="..\..\src\SDemo.App.Planner.Mcp\SDemo.App.Planner.Mcp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>
