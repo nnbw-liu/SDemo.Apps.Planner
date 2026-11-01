@@ -13,6 +13,7 @@
 - 真实 EF migrations（含 FTS5 虚表）+ 软删回收站 + outbox/op-log + MCP 审计。
 - 主窗口：待办 CRUD、日/周/月日历 + 拖拽改期、回收站、草稿审阅、ICS 导出。
 - 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown|widgets/...`。
+- 宿主联调通过：发现 → sha256 → ensure → runtime → MCP 13 工具 → 组件显示/指令 → 主窗口按需打开。
 - 验证记录：[docs/p2-verification.md](docs/p2-verification.md)；设计：[docs/planner-design.md](docs/planner-design.md)。
 
 P3 再做：`calendar_*` 工具、提醒（PL-08）、事件跨天显示；P5：outbox 合并、ICS 只读订阅。
@@ -27,7 +28,7 @@ src/SDemo.App.Planner.Mcp        JSON-RPC、工具目录、风险元数据、审
 src/SDemo.App.Planner.Host       WPF（MainWindow / WidgetWindow / 对话框）+ AppServer
 tests/SDemo.Planner.Tests        xunit（存储 / 服务 / MCP）
 deploy/                          app.json + widget.json
-tools/                           install-planner.ps1 / smoke-mcp.ps1
+tools/                           install-planner.ps1 / smoke-mcp.ps1 / accept-host.ps1
 ```
 
 ## 命令
@@ -36,7 +37,8 @@ tools/                           install-planner.ps1 / smoke-mcp.ps1
 dotnet build SDemo.Planner.slnf -c Release
 dotnet test  tests/SDemo.Planner.Tests/SDemo.Planner.Tests.csproj -c Release
 pwsh tools\smoke-mcp.ps1          # headless + 真实 HTTP 调 13 个工具
-pwsh tools\install-planner.ps1    # 发布到宿主 apps 目录并重算 sha256
+pwsh tools\accept-host.ps1        # 真宿主：发现/ensure/MCP/组件/主窗口（需 Shell 已构建）
+pwsh tools\install-planner.ps1    # 发布到 %APPDATA%\...\apps 并重算 sha256
 ```
 
 本地调试：
@@ -78,6 +80,9 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 相似重复阈值 0.75；完全重复只拒绝 AI/meeting 来源，manual 不拦。
 - `outbox` + `op_log` 与实体写在同一事务，别事后补。
 - 宿主拉起时不要自动弹主窗口；只显示组件，主窗口从组件按需打开。
+- 安装目录是 `%APPDATA%\SDemo\DesktopAssembly\apps\sdemo.planner`（不是 `%LOCALAPPDATA%`），
+  宿主只扫 APPDATA；`runtime` 与日志仍在 `%LOCALAPPDATA%`。
+- 组件指令路径是 `/v1/widgets/{id}/command`（4 段）；改路由后跑一遍 `accept-host.ps1`。
 
 ## 不要读
 

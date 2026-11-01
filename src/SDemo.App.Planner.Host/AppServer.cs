@@ -262,7 +262,7 @@ internal sealed class AppServer : IDisposable
                     return;
                 }
 
-                if (segments.Length == 5 && segments[3] == "command" && method == "POST")
+                if (segments.Length == 4 && segments[3] == "command" && method == "POST")
                 {
                     await HandleCommandAsync(request, response, requestId).ConfigureAwait(false);
                     return;

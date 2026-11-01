@@ -7,7 +7,7 @@
   并按实际 exe 重算 sha256（宿主启动前会校验，占位 0 会被判 APP_INVALID）。
 #>
 param(
-    [string]$AppsRoot = (Join-Path $env:LOCALAPPDATA 'SDemo\DesktopAssembly\apps'),
+    [string]$AppsRoot = (Join-Path $env:APPDATA 'SDemo\DesktopAssembly\apps'),
     [switch]$SkipBuild
 )
 

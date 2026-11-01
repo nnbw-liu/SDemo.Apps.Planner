@@ -92,6 +92,14 @@ try {
         -Body '{"jsonrpc":"2.0","id":"0","method":"tools/list"}' -SkipHttpErrorCheck
     Assert-True ($unauthorized.StatusCode -eq 401) '无 token 调 /mcp 返回 401'
 
+    $widgetState = Invoke-RestMethod -Uri "$base/v1/widgets/sdemo.planner.widget/state" -Headers $headers
+    Assert-True ($widgetState.widgetId -eq 'sdemo.planner.widget') 'GET 组件 state 路径正确'
+
+    $widgetCommand = Invoke-WebRequest -Uri "$base/v1/widgets/sdemo.planner.widget/command" -Method Post `
+        -Headers $headers -ContentType 'application/json' `
+        -Body '{"command":"refresh","opacity":0.94,"theme":"dark","config":{"maxItems":8}}' -SkipHttpErrorCheck
+    Assert-True ($widgetCommand.StatusCode -eq 200) 'POST 组件 command 路径正确'
+
     Write-Host '▸ MCP 协议'
     $init = Invoke-Mcp -Method 'initialize' -Params @{ protocolVersion = '2025-06-18' }
     Assert-True ($init.protocolVersion -eq '2025-06-18') 'initialize 协商协议版本'
