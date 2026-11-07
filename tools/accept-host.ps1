@@ -1,7 +1,7 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-  宿主联调验收：启动 DesktopAssembly → 发现已安装的 sdemo.planner → ensure → 组件可见 → MCP 可调。
+  宿主联调验收：启动 DesktopAssembly → 发现已安装的 sdemo.planner → ensure → 主窗口显示 → MCP 可调。
 .DESCRIPTION
   只读检查（tools/list、todo_list），不改真实待办数据；结束后优雅退出 planner，并清理本次拉起的进程。
   依赖同仓的 DesktopAssembly 已构建：DesktopAssembly/src/SDemo.Shell.Host/bin/.../SDemo.Shell.exe。
@@ -29,7 +29,6 @@ $runtimeDir = Join-Path $env:LOCALAPPDATA 'SDemo\DesktopAssembly\runtime'
 $hostJsonPath = Join-Path $runtimeDir 'host.json'
 $clientTokenPath = Join-Path $runtimeDir 'client-token'
 $plannerRuntimePath = Join-Path $runtimeDir 'sdemo.planner.json'
-$logDir = Join-Path $env:LOCALAPPDATA 'SDemo\logs\desktop-assembly'
 
 if (Test-Path $hostJsonPath) {
     $old = Get-Content $hostJsonPath -Raw | ConvertFrom-Json
@@ -109,7 +108,7 @@ try {
         -Body '{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"todo_list","arguments":{"limit":5}}}'
     Assert-True ($list.result.structuredContent.ok -eq $true) 'todo_list 调用成功'
 
-    Write-Host '▸ 组件窗口'
+    Write-Host '▸ 主窗口'
     Add-Type @"
 using System;
 using System.Text;
@@ -142,48 +141,10 @@ public static class SdemoPlannerFindWindow
     }
 }
 "@
-    Wait-For { [SdemoPlannerFindWindow]::FindVisibleByTitle('待办组件') -ne [IntPtr]::Zero } `
-        '组件窗口「待办组件」' 15
-    Assert-True ([SdemoPlannerFindWindow]::FindVisibleByTitle('待办组件') -ne [IntPtr]::Zero) '宿主已显示组件窗口'
-
-    Write-Host '▸ 组件指令（show / refresh 与参数校验）'
-    $commandBody = @{ opacity = 0.94; theme = 'dark'; config = @{ maxItems = 8 } }
-    foreach ($name in @('refresh', 'show')) {
-        $body = $commandBody.Clone()
-        $body.command = $name
-        Invoke-RestMethod "$appBase/v1/widgets/sdemo.planner.widget/command" -Method Post -Headers $appHeaders `
-            -ContentType 'application/json' -Body ($body | ConvertTo-Json -Depth 4 -Compress) | Out-Null
-    }
-    Assert-True $true 'show / refresh 指令返回 200'
-
-    $state = Invoke-RestMethod "$appBase/v1/widgets/sdemo.planner.widget/state" -Headers $appHeaders
-    Assert-True ($state.visible -eq $true) 'state 报告组件可见'
-
-    $bad = Invoke-WebRequest "$appBase/v1/widgets/sdemo.planner.widget/command" -Method Post -Headers $appHeaders `
-        -ContentType 'application/json' -Body '{"command":"nonsense"}' -SkipHttpErrorCheck
-    Assert-True ($bad.StatusCode -eq 400) '未知指令返回 400'
-
-    Write-Host '▸ 组件里按需打开主窗口'
-    Add-Type -AssemblyName UIAutomationClient
-    Add-Type -AssemblyName UIAutomationTypes
-    $hwnd = [SdemoPlannerFindWindow]::FindVisibleByTitle('待办组件')
-    $widgetElement = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
-    $buttonCondition = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::NameProperty, '打开主窗口')
-    $openButton = $widgetElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)
-    Assert-True ($null -ne $openButton) '组件里有「打开主窗口」按钮'
-    $openButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-
-    $mainElement = $null
-    for ($i = 0; $i -lt 50; $i++) {
-        $root = [System.Windows.Automation.AutomationElement]::RootElement
-        $mainCondition = New-Object System.Windows.Automation.PropertyCondition(
-            [System.Windows.Automation.AutomationElement]::NameProperty, '事序 · 项目与日常')
-        $mainElement = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $mainCondition)
-        if ($null -ne $mainElement) { break }
-        Start-Sleep -Milliseconds 200
-    }
-    Assert-True ($null -ne $mainElement) '主窗口按需打开'
+    Wait-For { [SdemoPlannerFindWindow]::FindVisibleByTitle('事序 · 项目与日常') -ne [IntPtr]::Zero } `
+        '主窗口「事序 · 项目与日常」' 15
+    $mainHwnd = [SdemoPlannerFindWindow]::FindVisibleByTitle('事序 · 项目与日常')
+    Assert-True ($mainHwnd -ne [IntPtr]::Zero) '宿主拉起后主窗口可见'
 
     Add-Type @"
 using System;
@@ -194,20 +155,13 @@ public static class SdemoPlannerWindowMessage
     public static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
 }
 "@
-    [SdemoPlannerWindowMessage]::PostMessage([IntPtr]$mainElement.Current.NativeWindowHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    [SdemoPlannerWindowMessage]::PostMessage([IntPtr]$mainHwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     Start-Sleep -Milliseconds 500
-    Assert-True ((Invoke-RestMethod "$appBase/v1/health").ok -eq $true) '关闭主窗口后应用仍存活（宿主模式）'
-
-    $log = Get-ChildItem $logDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime | Select-Object -Last 1
-    $registered = $false
-    if ($log) {
-        $registered = [bool](Select-String -Path $log.FullName -Pattern 'native 窗口已登记：sdemo\.planner\.widget' -Quiet)
-    }
-    Assert-True $registered '宿主日志出现 sdemo.planner 注册/拉起记录'
+    Wait-For { [SdemoPlannerFindWindow]::FindVisibleByTitle('事序 · 项目与日常') -eq [IntPtr]::Zero } '主窗口收进托盘'
+    Assert-True ((Invoke-RestMethod "$appBase/v1/health").ok -eq $true) '关闭主窗口后应用仍存活'
 
     Write-Host ''
-    Write-Host '✓ 宿主联调通过：发现 → ensure → runtime → MCP → 组件' -ForegroundColor Green
+    Write-Host '✓ 宿主联调通过：发现 → ensure → 主窗口 → MCP' -ForegroundColor Green
 }
 finally {
     if (Test-Path $plannerRuntimePath) {

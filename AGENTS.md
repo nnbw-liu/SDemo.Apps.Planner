@@ -4,7 +4,7 @@
 
 ## 职责
 
-事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅；桌面组件 ≤8 条待办。
+事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅。
 
 ## 现状（2026-11-06）
 
@@ -29,12 +29,12 @@
 - 日常提醒：固定时间 / 每隔 N 分钟；30 分钟宽限；`last_fired_at` 去重；右下角非激活 Toast。
 - 日历节假日：`holiday` 表；`HolidaySyncService` 拉 timor.tech；manual 优先于 remote；月格显示休/班 badge 与名称。
 - 搜索：默认全部状态；支持清空按钮/Esc/任务页「清除」；关键字命中标题、备注、完成说明。
-- 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown|widgets/...`。
-- 宿主联调、组件冒烟、ICS 导入 Outlook 沿用 v1；v2 月历暂不支持拖拽改期。
-- 桌面组件仍是 v1 `WidgetWindow`；v2 预留 `Web/Widgets/PlannerWidget.razor` 作为对外 Blazor 组件。
+- 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown`。
+- 宿主联调、ICS 导入 Outlook 沿用 v1；v2 月历暂不支持拖拽改期。
+- 桌面组件已于 2026-11-07 移除（`WidgetWindow`、`PlannerWidget.razor`、`widget.json` 与 widgets 路由均已删除）。宿主拉起应用时直接显示主窗口；替代方案未定，不要自行加回组件。
 - 验证记录：[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
 
-未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；v2 桌面组件；日程拖拽/重复规则；托盘开机自启。
+未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；桌面组件（已移除，替代方案待定）；日程拖拽/重复规则；托盘开机自启。
 P5：outbox 合并、ICS 只读订阅。
 
 ## 目录
@@ -44,11 +44,11 @@ src/SDemo.App.Planner.Contracts  DTO、输入、常量、错误码、JSON/时间
 src/SDemo.App.Planner.Storage    EF 实体 + migrations + FTS5 + 事务写入
 src/SDemo.App.Planner.Core       服务门面、校验、ICS、草稿拆分、相似度、项目/迭代/日常/提醒
 src/SDemo.App.Planner.Mcp        JSON-RPC、工具目录、风险元数据、审计
-src/SDemo.App.Planner.Web        Blazor RCL：Pages / Components / Layout / Widgets
-src/SDemo.App.Planner.Host       WPF 外壳 + BlazorWebView + WidgetWindow + ReminderToastWindow + TrayIcon + AppServer
+src/SDemo.App.Planner.Web        Blazor RCL：Pages / Components / Layout
+src/SDemo.App.Planner.Host       WPF 外壳 + BlazorWebView + MainWindow + ReminderToastWindow + TrayIcon + AppServer
 tests/SDemo.Planner.Tests        xunit（存储 / 服务 / MCP）
-deploy/                          app.json + widget.json
-tools/                           install-planner.ps1 / smoke-mcp.ps1 / smoke-widget.ps1 / smoke-calendar-drag.ps1 / accept-host.ps1
+deploy/                          app.json
+tools/                           install-planner.ps1 / smoke-mcp.ps1 / smoke-calendar-drag.ps1 / accept-host.ps1
 ```
 
 ## 命令
@@ -58,9 +58,8 @@ dotnet build SDemo.Planner.slnf -c Release
 dotnet test  tests/SDemo.Planner.Tests/SDemo.Planner.Tests.csproj -c Release
 dotnet build src\SDemo.App.Planner.Web -c Release   # 只查 Blazor 编译
 pwsh tools\smoke-mcp.ps1          # headless + 真实 HTTP 调 13 个工具
-pwsh tools\smoke-widget.ps1       # 组件 UIA：输入/添加/勾完成（临时库）
 pwsh tools\smoke-calendar-drag.ps1 # v1 WPF 月历拖拽（v2 Blazor 未实现，仅存档）
-pwsh tools\accept-host.ps1        # 真宿主：发现/ensure/MCP/组件/主窗口（需 Shell 已构建）
+pwsh tools\accept-host.ps1        # 真宿主：发现/ensure/主窗口/MCP（需 Shell 已构建）
 pwsh tools\install-planner.ps1    # 发布到 %APPDATA%\...\apps 并重算 sha256
 ```
 
@@ -78,13 +77,12 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 | --- | --- |
 | **v4 更名/搜索/节假日** | [docs/planner-v4.md](docs/planner-v4.md) |
 | **v3 状态/完成记录/延期/下拉/排序/托盘** | [docs/planner-v3.md](docs/planner-v3.md) |
-| **v2 产品/数据/提醒/组件** | [docs/planner-v2.md](docs/planner-v2.md) |
+| **v2 产品/数据/提醒** | [docs/planner-v2.md](docs/planner-v2.md) |
 | 需求与验收 | [docs/requirements.md](docs/requirements.md) |
 | v1 数据模型 / 日历 / ICS / 决策 | [docs/planner-design.md](docs/planner-design.md) |
 | 已跑过的门禁 | [docs/p2-verification.md](docs/p2-verification.md) |
 | MCP 工具面与审批 | [docs/planner-mcp-surface.md](docs/planner-mcp-surface.md) |
 | 跨应用引用 / 统一搜索 / 审批矩阵 | [../../docs/integration.md](../../docs/integration.md) |
-| 组件清单字段 | [../../docs/contracts/widget-contract.md](../../docs/contracts/widget-contract.md) |
 | 宿主怎么拉起本应用 | [../../docs/contracts/host-protocol.md](../../docs/contracts/host-protocol.md) |
 
 ## 铁律
@@ -127,10 +125,10 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
   Entity 里没有 `todo_fts` 的 DbSet，别用 `EnsureCreated`。
 - 相似重复阈值 0.75；完全重复只拒绝 AI/meeting 来源，manual 不拦。
 - `outbox` + `op_log` 与实体写在同一事务，别事后补。
-- 宿主拉起时不要自动弹主窗口；只显示组件，主窗口从组件按需打开。
+- 宿主拉起时直接显示主窗口（组件已移除）；主窗口关闭仍是 `Hide()` 到托盘。
 - 安装目录是 `%APPDATA%\SDemo\DesktopAssembly\apps\sdemo.planner`（不是 `%LOCALAPPDATA%`），
   宿主只扫 APPDATA；`runtime` 与日志仍在 `%LOCALAPPDATA%`。
-- 组件指令路径是 `/v1/widgets/{id}/command`（4 段）；改路由后跑一遍 `accept-host.ps1`。
+- app 面只剩 `/v1/health|handshake|shutdown`；不要再加 Widget 路由或 `widget.json`，否则宿主会去拉起一个不存在的组件。
 
 ## 不要读
 

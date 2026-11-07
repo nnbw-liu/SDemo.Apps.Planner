@@ -64,6 +64,8 @@
 
 截图：[月历假期](images/v4-calendar.png) · [假期管理](images/v4-holidays.png) · [搜索清除](images/v4-search.png)。
 
+> 2026-11-07 补记：桌面组件已移除（`WidgetWindow`、`PlannerWidget.razor`、`widget.json`、`tools\smoke-widget.ps1` 与 widgets 路由均删除）。上方 `smoke-widget.ps1` 结果为当时记录。
+
 ## 5. 边界
 
 - 节假日接口是第三方公开服务，不保证长期可用；失败时使用本地 manual 数据。

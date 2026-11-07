@@ -96,6 +96,8 @@ Contracts / Storage / Core / Mcp 保持原分层
 
 ## 6. 对外 Blazor 小组件
 
+> **2026-11-07：本节已作废。** `Widgets/PlannerWidget.razor` 与 `.planner-widget*` 样式已随桌面组件一并删除。
+
 `src/SDemo.App.Planner.Web/Widgets/PlannerWidget.razor` 是可复用的纯展示组件：
 
 - 参数：`Title`、`Todos`、`RoutineDone`、`RoutineTotal`、`Compact`、`MaxItems=8`、`OnToggle`、`OnOpen`。

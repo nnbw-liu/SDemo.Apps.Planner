@@ -3,7 +3,7 @@
 .SYNOPSIS
   构建并安装 sdemo.planner 到 DesktopAssembly 的 apps 目录。
 .DESCRIPTION
-  payload 里放 Release 发布产物；app.json / widget.json 复制到应用根目录，
+  payload 里放 Release 发布产物；app.json 复制到应用根目录，
   并按实际 exe 重算 sha256（宿主启动前会校验，占位 0 会被判 APP_INVALID）。
 #>
 param(
@@ -29,7 +29,9 @@ $exe = Join-Path $payload 'SDemo.Planner.exe'
 if (-not (Test-Path $exe)) { throw "找不到 $exe；先不加 -SkipBuild 跑一次。" }
 
 Copy-Item (Join-Path $repo 'deploy\app.json') $target -Force
-Copy-Item (Join-Path $repo 'deploy\widget.json') $target -Force
+
+# 桌面组件已移除；清掉旧安装残留的 widget.json，避免宿主继续发现并显示组件。
+Remove-Item (Join-Path $target 'widget.json') -Force -ErrorAction SilentlyContinue
 
 $appPath = Join-Path $target 'app.json'
 $app = Get-Content $appPath -Raw -Encoding UTF8 | ConvertFrom-Json

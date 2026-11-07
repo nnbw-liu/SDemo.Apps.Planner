@@ -11,7 +11,6 @@
 dotnet build SDemo.Planner.slnf -c Release
 dotnet test  tests/SDemo.Planner.Tests/SDemo.Planner.Tests.csproj -c Release
 pwsh tools\smoke-mcp.ps1
-pwsh tools\smoke-widget.ps1
 
 # 本地跑 UI（临时库，不碰真实数据）
 dotnet run --project src\SDemo.App.Planner.Host -- --db=$env:TEMP\planner-dev.db
@@ -34,7 +33,8 @@ pwsh tools\install-planner.ps1
 - **日历**：任务截止 + 日程起止；中国法定节假日联网同步，支持手动休/班，manual 优先。
 - **搜索**：跨全部状态匹配标题/备注/完成说明；顶部 ×、任务页「清除」、Esc 均可撤销。
 - **桌面体验**：深色 WPF 外壳；关闭窗口收进托盘，后台提醒继续；应用图标。
-- **数据与集成**：SQLite 单库；软删回收站 7 天；13 个 `todo_*` MCP 工具；ICS 导出；`PlannerWidget.razor` 对外组件边界。
+- **数据与集成**：SQLite 单库；软删回收站 7 天；13 个 `todo_*` MCP 工具；ICS 导出。
+- **桌面组件**：v1 的小窗口组件已于 2026-11-07 移除，替代方案待定；宿主拉起应用时直接显示主窗口。
 
 ## 文档
 
@@ -42,7 +42,7 @@ pwsh tools\install-planner.ps1
 | --- | --- |
 | v4 更名 / 搜索 / 节假日 | [docs/planner-v4.md](docs/planner-v4.md) |
 | v3 状态 / 完成记录 / 托盘 | [docs/planner-v3.md](docs/planner-v3.md) |
-| v2 产品 / 数据 / 提醒 / 组件 | [docs/planner-v2.md](docs/planner-v2.md) |
+| v2 产品 / 数据 / 提醒 | [docs/planner-v2.md](docs/planner-v2.md) |
 | v1 数据模型 / 日历 / ICS / 决策 | [docs/planner-design.md](docs/planner-design.md) |
 | P2 验证记录与人工清单 | [docs/p2-verification.md](docs/p2-verification.md) |
 | 需求计划（PM-01–24、分期、验收） | [docs/requirements.md](docs/requirements.md) |

@@ -50,12 +50,6 @@ internal sealed class AppServer : IDisposable
     /// <summary>收到 /v1/shutdown 后回调；由 UI 线程执行关窗退出。</summary>
     public Action? ShutdownRequested { get; set; }
 
-    /// <summary>宿主指令（show / hide / focus / refresh / themeChanged / configChanged）。</summary>
-    public Action<WidgetCommandPayload>? CommandReceived { get; set; }
-
-    /// <summary>组件可见性与透明度快照；由 WidgetWindow 注入。</summary>
-    public Func<(bool Visible, double Opacity)>? StateProvider { get; set; }
-
     internal static string RuntimeDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "SDemo",
@@ -252,35 +246,6 @@ internal sealed class AppServer : IDisposable
                 return;
             }
 
-            var segments = path.Trim('/').Split('/');
-            if (segments.Length >= 3 && segments[0] == "v1" && segments[1] == "widgets")
-            {
-                var widgetId = segments[2];
-                if (!string.Equals(widgetId, PlannerConstants.WidgetId, StringComparison.Ordinal))
-                {
-                    await WriteErrorAsync(response, 404, "APP_NOT_FOUND", $"未知组件「{widgetId}」", null).ConfigureAwait(false);
-                    return;
-                }
-
-                if (segments.Length == 4 && segments[3] == "command" && method == "POST")
-                {
-                    await HandleCommandAsync(request, response, requestId).ConfigureAwait(false);
-                    return;
-                }
-
-                if (segments.Length == 4 && segments[3] == "state" && method == "GET")
-                {
-                    var state = StateProvider?.Invoke() ?? (Visible: false, Opacity: 0d);
-                    await WriteJsonAsync(response, 200, new
-                    {
-                        widgetId,
-                        visible = state.Visible,
-                        opacity = state.Opacity,
-                    }).ConfigureAwait(false);
-                    return;
-                }
-            }
-
             await WriteErrorAsync(response, 404, "APP_NOT_FOUND", "路径不存在", $"{method} {path}").ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -379,46 +344,8 @@ internal sealed class AppServer : IDisposable
         {
             appVersion = _appVersion,
             hostApiVersion = PlannerConstants.HostApiVersion,
-            capabilities = new[] { "native-window" },
+            capabilities = Array.Empty<string>(),
         }).ConfigureAwait(false);
-    }
-
-    private async Task HandleCommandAsync(HttpListenerRequest request, HttpListenerResponse response, string requestId)
-    {
-        var body = await ReadBodyAsync(request).ConfigureAwait(false);
-        if (body is null)
-        {
-            await WriteErrorAsync(response, 413, "APP_TOO_LARGE", "请求体超过 64KB", null).ConfigureAwait(false);
-            return;
-        }
-
-        WidgetCommandPayload? command;
-        try
-        {
-            command = body.Length == 0
-                ? null
-                : JsonSerializer.Deserialize<WidgetCommandPayload>(body, PlannerJson.Wire);
-        }
-        catch (JsonException)
-        {
-            await WriteErrorAsync(response, 400, "APP_BAD_REQUEST", "指令 body 不是合法 JSON", null).ConfigureAwait(false);
-            return;
-        }
-
-        if (command is null || string.IsNullOrWhiteSpace(command.Command))
-        {
-            await WriteErrorAsync(response, 400, "APP_BAD_REQUEST", "缺少 command", "show / hide / focus / refresh / themeChanged / configChanged").ConfigureAwait(false);
-            return;
-        }
-
-        if (command.Command is not ("show" or "hide" or "focus" or "refresh" or "themeChanged" or "configChanged"))
-        {
-            await WriteErrorAsync(response, 400, "APP_BAD_REQUEST", $"未知指令「{command.Command}」", null).ConfigureAwait(false);
-            return;
-        }
-
-        CommandReceived?.Invoke(command);
-        await WriteJsonAsync(response, 200, new { accepted = true }).ConfigureAwait(false);
     }
 
     private async Task<string?> ReadBodyAsync(HttpListenerRequest request)

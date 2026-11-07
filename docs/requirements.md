@@ -87,7 +87,7 @@
 | 工作项关联文档 | 存 `sdemo.kb/doc/<id>@v#b` 字符串；Agent 解析跳转 |
 | 统一搜索 | Agent fan-out 调 `todo_search` / `calendar_range`，结果合并排序 |
 | 高风险审批 | 删除 / 批量≥5 / 清空 → 每次确认 + 审计，不可关闭 |
-| 桌面组件 | 复用 `Web/Widgets/PlannerWidget.razor` 的参数与事件 |
+| 桌面组件 | ~~复用 `Web/Widgets/PlannerWidget.razor` 的参数与事件~~（2026-11-07 组件已移除，待重新设计） |
 
 ## 7. 风险与待定
 

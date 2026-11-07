@@ -17,16 +17,13 @@ internal static class Program
 {
     private const string MutexName = "SDemo.App.sdemo.planner";
     private const string AppTokenEnvironmentVariable = "SDEMO_APP_TOKEN";
-    private const string HostUrlEnvironmentVariable = "SDEMO_HOST_URL";
 
     [STAThread]
     private static int Main(string[] args)
     {
         var headless = HasFlag(args, "--headless");
-        var widgetOnly = HasFlag(args, "--widget");
         var instance = GetOption(args, "--instance");
         var databasePath = GetOption(args, "--db") ?? PlannerPaths.DatabasePath;
-        var hostPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(HostUrlEnvironmentVariable));
 
         var mutexName = instance is null ? MutexName : $"{MutexName}.{instance}";
         using var mutex = new Mutex(initiallyOwned: true, mutexName, out var createdNew);
@@ -146,21 +143,17 @@ internal static class Program
         services.AddScoped<ThemeService>();
         using var provider = services.BuildServiceProvider();
 
-        return RunDesktop(server, service, token, provider, lifecycle, widgetOnly, hostPresent);
+        return RunDesktop(server, service, provider, lifecycle);
     }
 
     private static int RunDesktop(
         AppServer server,
         PlannerService service,
-        string token,
         IServiceProvider services,
-        HostAppLifecycle lifecycle,
-        bool widgetOnly,
-        bool hostPresent)
+        HostAppLifecycle lifecycle)
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         MainWindow? main = null;
-        WidgetWindow? widget = null;
         TrayIcon? tray = null;
         var allowClose = false;
 
@@ -211,62 +204,23 @@ internal static class Program
             main.Activate();
         }
 
-        widget = new WidgetWindow(service, OpenMain);
-
-        if (widgetOnly)
-        {
-            // 仅组件模式：给宿主/调试用，不创建主窗口。
-        }
-        else if (!hostPresent)
-        {
-            main = new MainWindow(services);
-            WireMain(main);
-        }
-        else
-        {
-            // 宿主拉起时只显示组件；主窗口按需从组件里打开。
-        }
+        main = new MainWindow(services);
+        WireMain(main);
 
         void ExitApp()
         {
             allowClose = true;
             tray?.Dispose();
             tray = null;
-            widget?.Close();
             main?.Close();
             app.Shutdown();
         }
 
         lifecycle.ExitRequested = () => app.Dispatcher.BeginInvoke(new Action(ExitApp));
 
-        server.CommandReceived = widget.ApplyCommand;
-        server.StateProvider = widget.GetState;
         server.ShutdownRequested = () => app.Dispatcher.BeginInvoke(new Action(ExitApp));
 
-        var registration = new HostRegistration(token);
-        widget.Show();
-        if (hostPresent)
-        {
-            // 宿主负责显示与摆放；这里先建窗再隐藏，避免抢焦点。
-            widget.Hide();
-        }
-        var hwnd = (long)widget.Hwnd;
-        _ = registration.RegisterQuietly(hwnd);
-        widget.Closed += (_, _) => _ = registration.UnregisterQuietly(hwnd);
-
-        if (main is not null)
-        {
-            app.MainWindow = main;
-            if (!hostPresent)
-            {
-                widget.Show();
-            }
-        }
-        else
-        {
-            app.MainWindow = widget;
-        }
-
+        app.MainWindow = main;
         tray = new TrayIcon(OpenMain, ExitApp);
 
         try
@@ -276,14 +230,7 @@ internal static class Program
 
             // 必须让 Application 的事件循环先启动，再让窗口承载 WebView2；
             // 提前 Show() 会触发 EnsureCoreWebView2Async 的时序异常。
-            if (main is not null)
-            {
-                app.Run(main);
-            }
-            else
-            {
-                app.Run();
-            }
+            app.Run(main);
         }
         finally
         {

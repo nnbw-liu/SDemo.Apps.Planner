@@ -116,6 +116,6 @@ TodoWriteResult PostponeTodo(string id, int expectedRevision, int days, WriteCon
 ## 11. 未做
 
 - `project_*` / `iteration_*` / `routine_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 也尚未暴露为 MCP 工具。
-- v2 桌面组件仍沿用 v1 `WidgetWindow`。
+- v2 桌面组件仍沿用 v1 `WidgetWindow`（2026-11-07 已整体移除）。
 - 日程拖拽、重复规则未做。
 - 托盘菜单未做「开机自启」开关。

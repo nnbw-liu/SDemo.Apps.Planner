@@ -7,7 +7,6 @@ namespace SDemo.App.Planner.Contracts;
 public static class PlannerConstants
 {
     public const string AppId = "sdemo.planner";
-    public const string WidgetId = "sdemo.planner.widget";
     public const string AppVersion = "0.1.0";
 
     /// <summary>宿主 API 版本（docs/contracts/host-protocol.md，主版本相同 + 次版本 ≤ 宿主）。</summary>
