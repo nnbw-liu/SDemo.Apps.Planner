@@ -31,7 +31,12 @@ internal sealed class TrayIcon : IDisposable
     private readonly HwndSource _source;
     private readonly IntPtr _icon;
     private readonly bool _ownsIcon;
-    private readonly ContextMenu _menu;
+    private bool _dark = true;
+    private ContextMenu? _menu;
+    private bool? _menuDark;
+
+    public static TrayIcon? Current { get; private set; }
+
     private NOTIFYICONDATA _data;
     private bool _added;
     private bool _disposed;
@@ -52,7 +57,7 @@ internal sealed class TrayIcon : IDisposable
         _source.AddHook(WndProc);
 
         (_icon, _ownsIcon) = LoadAppIcon();
-        _menu = BuildMenu();
+        Current = this;
 
         _data = new NOTIFYICONDATA
         {
@@ -72,7 +77,7 @@ internal sealed class TrayIcon : IDisposable
         }
     }
 
-    private ContextMenu BuildMenu()
+    private ContextMenu BuildMenu(bool dark)
     {
         var menu = new ContextMenu
         {
@@ -84,27 +89,15 @@ internal sealed class TrayIcon : IDisposable
 
         menu.Resources.Add(typeof(MenuItem), XamlReader.Parse(MenuItemStyle));
         menu.Resources.Add(typeof(Separator), XamlReader.Parse(SeparatorStyle));
-
-        var header = new StackPanel { Margin = new Thickness(9, 7, 12, 9) };
-        header.Children.Add(new TextBlock
+        foreach (var (key, value) in Palette(dark))
         {
-            Text = "事序",
-            FontSize = 12.5,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Brush("#e9edf5"),
-        });
-        header.Children.Add(new TextBlock
-        {
-            Text = "项目 · 迭代 · 日常",
-            FontSize = 9.8,
-            Margin = new Thickness(0, 3, 0, 0),
-            Foreground = Brush("#5d687c"),
-        });
+            menu.Resources[key] = Brush(value);
+        }
 
         var open = new MenuItem
         {
             Header = "打开事序",
-            Icon = Glyph("\uE8A7", "#8ba4ff"),
+            Icon = Glyph("\uE8A7", dark ? "#8ba4ff" : "#3b5bdb"),
             InputGestureText = "双击托盘图标",
         };
         open.Click += (_, _) => _show();
@@ -112,17 +105,48 @@ internal sealed class TrayIcon : IDisposable
         var exit = new MenuItem
         {
             Header = "退出",
-            Icon = Glyph("\uE7E8", "#ff8f9e"),
-            Foreground = Brush("#ffb3bd"),
+            Icon = Glyph("\uE7E8", dark ? "#ff8f9e" : "#d24a5a"),
+            Foreground = (SolidColorBrush)menu.Resources["TrayDangerText"],
         };
         exit.Click += (_, _) => _exit();
 
-        menu.Items.Add(header);
-        menu.Items.Add(new Separator());
         menu.Items.Add(open);
         menu.Items.Add(new Separator());
         menu.Items.Add(exit);
         return menu;
+    }
+
+    private static (string Key, string Value)[] Palette(bool dark) => dark
+        ?
+        [
+            ("TrayBg", "#171c27"),
+            ("TrayBorder", "#2b3547"),
+            ("TrayText", "#dfe6f2"),
+            ("TrayMuted", "#5d687c"),
+            ("TrayHover", "#252d3d"),
+            ("TraySeparator", "#242d3d"),
+            ("TrayDangerText", "#ffb3bd"),
+        ]
+        :
+        [
+            ("TrayBg", "#ffffff"),
+            ("TrayBorder", "#dbe2ee"),
+            ("TrayText", "#1f2937"),
+            ("TrayMuted", "#7a879c"),
+            ("TrayHover", "#eef2f8"),
+            ("TraySeparator", "#e6ebf3"),
+            ("TrayDangerText", "#b91c3c"),
+        ];
+
+    public void ApplyTheme(bool dark) => _dark = dark;
+
+    private void EnsureMenu()
+    {
+        if (_menu is null || _menuDark != _dark)
+        {
+            _menu = BuildMenu(_dark);
+            _menuDark = _dark;
+        }
     }
 
     private static SolidColorBrush Brush(string hex)
@@ -144,13 +168,22 @@ internal sealed class TrayIcon : IDisposable
         <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                          TargetType="{x:Type ContextMenu}">
           <Border Margin="12" Padding="6" CornerRadius="12"
-                  Background="#171c27" BorderBrush="#2b3547" BorderThickness="1"
+                  Background="{DynamicResource TrayBg}" BorderBrush="{DynamicResource TrayBorder}" BorderThickness="1"
                   SnapsToDevicePixels="True">
             <Border.Effect>
               <DropShadowEffect BlurRadius="22" ShadowDepth="4" Direction="270"
-                                Opacity="0.55" Color="#000000" />
+                                Opacity="0.4" Color="#000000" />
             </Border.Effect>
-            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+            <StackPanel>
+              <StackPanel Margin="9,7,12,8">
+                <TextBlock Text="事序" FontSize="12.5" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TrayText}" />
+                <TextBlock Text="项目 · 迭代 · 日常" FontSize="9.8" Margin="0,3,0,0"
+                           Foreground="{DynamicResource TrayMuted}" />
+              </StackPanel>
+              <Border Height="1" Margin="9,0,9,4" Background="{DynamicResource TraySeparator}" />
+              <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+            </StackPanel>
           </Border>
         </ControlTemplate>
         """;
@@ -159,7 +192,7 @@ internal sealed class TrayIcon : IDisposable
         <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                TargetType="{x:Type MenuItem}">
           <Setter Property="OverridesDefaultStyle" Value="True" />
-          <Setter Property="Foreground" Value="#dfe6f2" />
+          <Setter Property="Foreground" Value="{DynamicResource TrayText}" />
           <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
           <Setter Property="FontSize" Value="12.5" />
           <Setter Property="Cursor" Value="Hand" />
@@ -179,12 +212,12 @@ internal sealed class TrayIcon : IDisposable
                     <ContentPresenter Grid.Column="1" ContentSource="Header" Margin="9,0,16,0"
                                       VerticalAlignment="Center" RecognizesAccessKey="True" />
                     <TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}"
-                               Foreground="#5d687c" FontSize="9.8" VerticalAlignment="Center" />
+                               Foreground="{DynamicResource TrayMuted}" FontSize="9.8" VerticalAlignment="Center" />
                   </Grid>
                 </Border>
                 <ControlTemplate.Triggers>
                   <Trigger Property="IsHighlighted" Value="True">
-                    <Setter TargetName="Bd" Property="Background" Value="#252d3d" />
+                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource TrayHover}" />
                   </Trigger>
                   <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.45" />
@@ -203,13 +236,12 @@ internal sealed class TrayIcon : IDisposable
           <Setter Property="Template">
             <Setter.Value>
               <ControlTemplate TargetType="{x:Type Separator}">
-                <Border Height="1" Margin="9,4" Background="#242d3d" />
+                <Border Height="1" Margin="9,4" Background="{DynamicResource TraySeparator}" />
               </ControlTemplate>
             </Setter.Value>
           </Setter>
         </Style>
         """;
-
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == CallbackMessage)
@@ -243,14 +275,16 @@ internal sealed class TrayIcon : IDisposable
         var toDip = _source.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
         var dip = toDip.Transform(new Point(point.X, point.Y));
 
-        _menu.Placement = System.Windows.Controls.Primitives.PlacementMode.AbsolutePoint;
-        _menu.HorizontalOffset = dip.X;
-        _menu.VerticalOffset = dip.Y;
+        EnsureMenu();
+        var menu = _menu!;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.AbsolutePoint;
+        menu.HorizontalOffset = dip.X;
+        menu.VerticalOffset = dip.Y;
 
         // 让菜单在点击空白处时能正常关闭；必须早于打开菜单，
         // 否则 ForegroundWindow 变化会把刚弹出的菜单关掉。
         SetForegroundWindow(_source.Handle);
-        _menu.IsOpen = true;
+        menu.IsOpen = true;
     }
 
     private static (IntPtr Icon, bool Owns) LoadAppIcon()

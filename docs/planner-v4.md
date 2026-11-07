@@ -172,3 +172,22 @@
 
 - `dotnet build SDemo.Planner.slnf -c Release`：0 警告 0 错误；`dotnet test`：49/49 通过。
 - 实机（150% DPI，浅色/深色各一遍）：启动跟随系统、设置弹窗切换三态、localStorage 持久化、标题栏同步换色；项目页 topbar 出现「新建项目」；日历 10 月国庆 8 个「休」+ 10 月 10 日「班」、周末「休」；hover「+」预填日期；任务详情显示/占位说明；状态下拉为不透明面板且盖住后续行。
+## 9. v4.4 导航与托盘收口（2026-11-07）
+
+### 侧栏与顶栏
+
+- 浅色主题下选中项原先用 `color:#fff`，落在浅蓝底上几乎不可读；`[data-theme="light"] .nav-item.active` 改为深靛蓝字 `#1e2f7a` + 细内描边 + 半粗，保留左侧 accent 竖条。
+- 「新建日常」从日常页 toolbar 移到 topbar 常驻（ghost 按钮 + repeat 图标），任何页面都能直接新建；日常页删掉原来的 `.page-toolbar`。
+- 顶栏「新建任务」改为 `OpenNewTask()`：当前路由是 `/projects/{id}` 时带 `projectId` 打开，任务编辑器里的项目预填为当前项目；其它页面仍为空项目。
+- 侧栏底部「退出应用」与齿轮设置按钮合并为一行 `.sidebar-actions`，不再多占一行、也不再被窗口底部裁掉。
+
+### 托盘菜单
+
+- 菜单配色改为跟随应用主题：`TrayIcon.BuildMenu(bool dark)` 把 `TrayBg/Border/Text/Muted/Hover/Separator/DangerText` 写进 `menu.Resources`，模板用 `{DynamicResource …}` 取值；`HostThemeBridge.Apply` 同时调用 `TrayIcon.Current?.ApplyTheme(dark)`，`ShowMenu()` 里 `EnsureMenu()` 在主题变化后重建。
+- 标题区（「事序 / 项目 · 迭代 · 日常」）从 `menu.Items` 移进 `ContextMenu` 的 ControlTemplate，`Items` 只保留「打开事序」「退出」；这样标题不再被 WPF 包成 MenuItem，不会出现 hover 高亮或可选中。
+- 深色调色：`#171c27 / #2b3547 / #dfe6f2 / #5d687c / #252d3d / #242d3d`；浅色：`#ffffff / #dbe2ee / #1f2937 / #7a879c / #eef2f8 / #e6ebf3`。
+
+### 验证
+
+- `dotnet build SDemo.Planner.slnf -c Release`：0 警告 0 错误；`dotnet test`：49/49 通过。
+- 实机（150% DPI）：浅色选中项清晰；项目详情顶栏新建任务项目预填 `dynabookAssistant`；任意页面「新建日常」都能打开编辑器；任务栏溢出里右键托盘菜单，浅色/深色各截一次，标题无 hover 高亮、两个菜单项配色与主界面一致。

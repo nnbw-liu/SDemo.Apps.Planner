@@ -99,7 +99,10 @@
                         <Icon Name="plus" Size="16" /> 新建项目
                     </button>
                 }
-                <button class="btn btn-primary" @onclick="() => Ui.OpenTask()">
+                <button class="btn btn-ghost" @onclick="() => Ui.OpenRoutine()">
+                    <Icon Name="repeat" Size="15" /> 新建日常
+                </button>
+                <button class="btn btn-primary" @onclick="OpenNewTask">
                     <Icon Name="plus" Size="16" /> 新建任务
                 </button>
             </div>
@@ -181,6 +184,34 @@
             _confirmExit = false;
             StateHasChanged();
         });
+    }
+
+    private string? CurrentProjectId
+    {
+        get
+        {
+            var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Trim('/');
+            if (!path.StartsWith("projects/", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var id = path["projects/".Length..].Trim('/');
+            return id.Length == 0 || id.Contains('/') ? null : id;
+        }
+    }
+
+    private void OpenNewTask()
+    {
+        var projectId = CurrentProjectId;
+        if (string.IsNullOrEmpty(projectId))
+        {
+            Ui.OpenTask();
+        }
+        else
+        {
+            Ui.OpenTask(projectId: projectId);
+        }
     }
 
     private bool IsProjectsPage =>

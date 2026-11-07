@@ -21,6 +21,7 @@
 - 项目页（v4.3）：「新建项目」在 topbar、「新建任务」左侧；由 `MainLayout.IsProjectsPage` 路由判断渲染，不用 Sections。
 - 任务详情（v4.3）：始终显示「任务说明」段，空时给占位提示。
 - 主题（v4.3）：深色/浅色双主题，默认跟随系统；设置入口在侧栏底部与「退出应用」同排；选择存 localStorage `planner-theme`，WPF 标题栏经 `IThemeHost` 同步。
+- 导航与托盘（v4.4）：浅色选中项用深靛蓝字 + 细描边；「新建日常」常驻 topbar；项目详情顶栏「新建任务」自动预填当前项目；托盘菜单用 `TrayIcon.BuildMenu(dark)` + `DynamicResource` 跟随主题，标题区移进 ControlTemplate 不再可选。
 - 工作项状态：open/doing/done/verified/closed/canceled；终态可写完成说明 + 产物；任务可延期（1 天/1 周/1 月/指定时间）。
 - 任务列表（v4.1）：左侧只读状态徽标，点行看详情；右侧状态下拉/编辑/延期；分组支持「按项目」「项目 + 迭代」，两级都可折叠。
 - 迭代下拉显示「大迭代 · 小迭代」，放不下时退化为只显示小迭代（`SelectOption.CompactLabel`）。
@@ -113,6 +114,8 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 自绘标题栏：`WindowStyle=None` + `WindowChrome`，`CaptionHeight=0` 时窗口按钮才能收到点击；拖拽靠 `TitleBar_MouseLeftButtonDown` 里 `DragMove()`。无边框最大化会盖住任务栏，必须在 `WndProc` 处理 `WM_GETMINMAXINFO` 把尺寸钉在 `rcWork`。默认 1180×740，别调回 1280×840——150% 缩放下它等于工作区，最大化看不出变化。
 - 任务行 `TaskRow` 自带状态下拉/编辑/延期，页面只需 `<TaskRow Todo="todo" />`；分组折叠键用 `"p:" + 项目Id` 与迭代 Id，别混用。
 - 任务行不要加 `opacity`（`is-done` 曾经用 opacity: .5）——它会让内部下拉继承半透明，并生成 stacking context，fixed 菜单被后续行盖住。弱化用颜色/子元素透明度。
+- 顶栏「新建任务」走 `MainLayout.OpenNewTask()`：路由是 `/projects/{id}` 时把 `projectId` 传给 `Ui.OpenTask`，否则新建任务会丢项目。
+- 托盘标题不要塞进 `menu.Items`（会被 WPF 包成 MenuItem 出现 hover/选中）；标题画进 `MenuTemplate`，颜色用 `{DynamicResource Tray*}`，由 `BuildMenu(dark)` 写 `menu.Resources`。
 - 主题：颜色一律走 `--surface-*` / `--wash-rgb` / 语义 token，别新写 `rgba(255,255,255,α)` 或深色 hex，否则浅色主题下会瞎；半透明遮罩写 `rgba(var(--wash-rgb), α)`。主题存 localStorage `planner-theme`，`ThemeService` + `IThemeHost` 同步 WPF 标题栏。
 - `SectionOutlet`/`SectionContent` 在 BlazorWebView 里不渲染（内容被静默丢弃），页面级 topbar 动作改用 `MainLayout` 路由判断。
 - 日历格子是 `<button>`，hover「+」用 `<span class="cell-add">` 绝对定位，别嵌 button。

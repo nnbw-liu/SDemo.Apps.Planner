@@ -20,6 +20,8 @@ internal sealed class HostThemeBridge : IThemeHost
             {
                 window.ApplyTheme(dark);
             }
+
+            TrayIcon.Current?.ApplyTheme(dark);
         });
     }
 }
