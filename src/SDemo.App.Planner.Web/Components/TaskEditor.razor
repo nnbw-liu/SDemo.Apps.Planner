@@ -1,0 +1,444 @@
+@inherits PlannerPageBase
+
+<Modal Title="@(Ui.EditingTodo is null ? "新建任务" : "编辑任务")"
+       Eyebrow="@(Ui.EditingTodo is null ? "捕捉下一件事" : "调整任务")"
+       SizeClass="modal-md" OnClose="Close">
+    <ChildContent>
+    <div class="form-grid">
+        <label class="field field-full">
+            <span>标题</span>
+            <input class="input input-lg" placeholder="例如：完成登录页联调" @bind="_title" @bind:event="oninput" autofocus />
+        </label>
+
+        <div class="field field-full">
+            <span>类型</span>
+            <div class="chip-row">
+                @foreach (var kind in Kinds)
+                {
+                    <button type="button" class="chip @(_kind == kind ? "chip-active" : "")"
+                            @onclick="() => _kind = kind">
+                        <Icon Name="@KindIcon(kind)" Size="14" /> @KindLabel(kind)
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="field">
+            <span>项目</span>
+            <SelectBox TValue="string"
+                       Value="_projectId"
+                       ValueChanged="OnProjectChanged"
+                       Options="ProjectOptions"
+                       Placeholder="未归属项目" />
+        </div>
+
+        <div class="field">
+            <span>迭代</span>
+            <SelectBox TValue="string"
+                       Value="_iterationId"
+                       ValueChanged="OnIterationChanged"
+                       Options="IterationOptions"
+                       Placeholder="不挂迭代"
+                       Disabled="@(string.IsNullOrEmpty(_projectId))" />
+        </div>
+
+        @if (Ui.EditingTodo is not null)
+        {
+            <div class="field field-full">
+                <span>状态</span>
+                <SelectBox TValue="TodoStatus"
+                           Value="_status"
+                           ValueChanged="value => _status = value"
+                           Options="StatusOptions"
+                           Placeholder="新建" />
+            </div>
+
+            @if (IsTerminal(_status))
+            {
+                <label class="field field-full">
+                    <span>完成说明</span>
+                    <textarea class="input textarea" rows="3"
+                              placeholder="怎么完成的？验收结果、遗留问题、下一步…"
+                              @bind="_completionNote"></textarea>
+                </label>
+
+                <label class="field field-full">
+                    <span>产物 / 链接</span>
+                    <textarea class="input textarea" rows="2"
+                              placeholder="每行一个：提交、文档、截图、构建产物或链接"
+                              @bind="_artifactsText"></textarea>
+                </label>
+            }
+        }
+
+        @if (Ui.EditingTodo is { } editing && (editing.CompletionNote is not null || editing.Artifacts.Count > 0))
+        {
+            <div class="completion-record field-full">
+                <span class="eyebrow">完成记录</span>
+                @if (!string.IsNullOrWhiteSpace(editing.CompletionNote))
+                {
+                    <p>@editing.CompletionNote</p>
+                }
+                @if (editing.Artifacts.Count > 0)
+                {
+                    <ul>
+                        @foreach (var artifact in editing.Artifacts)
+                        {
+                            <li>
+                                @if (Uri.TryCreate(artifact, UriKind.Absolute, out var uri))
+                                {
+                                    <a href="@uri" target="_blank" rel="noreferrer">@artifact</a>
+                                }
+                                else
+                                {
+                                    <span>@artifact</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+
+        <label class="field">
+            <span>截止日期</span>
+            <input class="input" type="date" value="@_dueDate" @onchange="e => _dueDate = DateValue(e)" />
+        </label>
+
+        <label class="field">
+            <span>截止时间</span>
+            <input class="input" type="time" value="@_dueTime" @onchange="e => _dueTime = TimeValue(e)" disabled="@string.IsNullOrEmpty(_dueDate)" />
+        </label>
+
+        <div class="field field-full">
+            <span>优先级</span>
+            <div class="chip-row">
+                <button type="button" class="chip @(_priority == 1 ? "chip-danger" : "")" @onclick="() => _priority = 1">高</button>
+                <button type="button" class="chip @(_priority == 2 ? "chip-active" : "")" @onclick="() => _priority = 2">中</button>
+                <button type="button" class="chip @(_priority == 3 ? "chip-muted" : "")" @onclick="() => _priority = 3">低</button>
+            </div>
+        </div>
+
+        <label class="field field-full">
+            <span>备注</span>
+            <textarea class="input textarea" rows="3" placeholder="补充背景、验收标准或链接…" @bind="_notes"></textarea>
+        </label>
+
+        @if (_error is not null)
+        {
+            <div class="form-error field-full">@_error</div>
+        }
+    </div>
+    </ChildContent>
+
+    <Footer>
+        @if (Ui.EditingTodo is not null)
+        {
+            <button class="btn btn-danger btn-sm" style="margin-right:auto" @onclick="Delete">
+                @(_confirmDelete ? "确认删除" : "删除")
+            </button>
+            <button class="btn btn-ghost btn-sm" @onclick="Postpone" disabled="@_saving">延期 1 天</button>
+        }
+        <button class="btn btn-ghost" @onclick="Close">取消</button>
+        <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+            @(_saving ? "保存中…" : "保存任务")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private static readonly WorkItemKind[] Kinds =
+        [WorkItemKind.Task, WorkItemKind.Bug, WorkItemKind.Research, WorkItemKind.Chore];
+
+    private string _title = string.Empty;
+    private string _notes = string.Empty;
+    private WorkItemKind _kind = WorkItemKind.Task;
+    private TodoStatus _status = TodoStatus.Open;
+    private string _projectId = string.Empty;
+    private string _iterationId = string.Empty;
+    private string _dueDate = string.Empty;
+    private string _dueTime = string.Empty;
+    private int _priority = 2;
+    private string _completionNote = string.Empty;
+    private string _artifactsText = string.Empty;
+    private bool _saving;
+    private bool _confirmDelete;
+    private string? _error;
+
+    private IReadOnlyList<ProjectDto> _projects = [];
+    private IReadOnlyList<IterationDto> _iterations = [];
+
+    private IEnumerable<IterationDto> Iterations => _iterations
+        .Where(i => i.ProjectId == _projectId)
+        .OrderBy(i => i.Level)
+        .ThenBy(i => i.Sort);
+
+    private IReadOnlyList<SelectOption<string>> ProjectOptions =>
+        [new("", "未归属项目"), .. _projects.Select(p => new SelectOption<string>(p.Id, p.Name))];
+
+    private IReadOnlyList<SelectOption<string>> IterationOptions
+    {
+        get
+        {
+            var iterations = Iterations.ToList();
+            var result = new List<SelectOption<string>> { new("", "不挂迭代") };
+            var seen = new HashSet<string>();
+
+            foreach (var big in iterations.Where(i => i.Level == IterationLevel.Big).OrderBy(i => i.Sort))
+            {
+                result.Add(IterationOption(big));
+                seen.Add(big.Id);
+
+                foreach (var child in iterations
+                             .Where(i => i.ParentId == big.Id)
+                             .OrderBy(i => i.Sort))
+                {
+                    result.Add(IterationOption(child));
+                    seen.Add(child.Id);
+                }
+            }
+
+            // 父级缺失的孤儿迭代仍然可挂，避免数据修复前无法选择。
+            foreach (var rest in iterations.Where(i => !seen.Contains(i.Id)).OrderBy(i => i.Level).ThenBy(i => i.Sort))
+            {
+                result.Add(IterationOption(rest));
+            }
+
+            return result;
+        }
+    }
+
+    private static SelectOption<string> IterationOption(IterationDto iteration) =>
+        new(iteration.Id, IterationLabel(iteration), null, iteration.Name);
+
+    private static IReadOnlyList<SelectOption<TodoStatus>> StatusOptions =>
+    [
+        new(TodoStatus.Open, "新建"),
+        new(TodoStatus.Doing, "进行中"),
+        new(TodoStatus.Done, "已完成"),
+        new(TodoStatus.Verified, "已验证"),
+        new(TodoStatus.Closed, "已关闭"),
+        new(TodoStatus.Canceled, "已取消"),
+    ];
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _projects = Service.ListProjects();
+        var todo = Ui.EditingTodo;
+        _kind = todo?.Kind ?? Ui.PresetKind;
+        _projectId = todo?.ProjectId ?? Ui.PresetProjectId ?? string.Empty;
+        _iterationId = todo?.IterationId ?? Ui.PresetIterationId ?? string.Empty;
+
+        if (todo is not null)
+        {
+            _title = todo.Title;
+            _notes = todo.Notes ?? string.Empty;
+            _priority = todo.Priority;
+            _status = todo.Status;
+            _completionNote = todo.CompletionNote ?? string.Empty;
+            _artifactsText = string.Join('\n', todo.Artifacts);
+            var due = todo.DueAt?.ToLocalTime();
+            _dueDate = due?.ToString("yyyy-MM-dd") ?? string.Empty;
+            _dueTime = due?.ToString("HH:mm") ?? string.Empty;
+        }
+        else if (Ui.PresetDueDate is { } presetDue)
+        {
+            // 从日历格子的「+」进来：截止日期就是那一天，时间交给 ParseDue 的默认值。
+            _dueDate = presetDue.ToString("yyyy-MM-dd");
+            _dueTime = string.Empty;
+        }
+
+        _iterations = Service.ListIterations();
+        if (string.IsNullOrEmpty(_projectId) && !string.IsNullOrEmpty(_iterationId))
+        {
+            _projectId = _iterations.FirstOrDefault(i => i.Id == _iterationId)?.ProjectId ?? string.Empty;
+        }
+    }
+
+    private void OnProjectChanged(string value)
+    {
+        _projectId = value;
+        if (!Iterations.Any(i => i.Id == _iterationId))
+        {
+            _iterationId = string.Empty;
+        }
+    }
+
+    private void OnIterationChanged(string value) => _iterationId = value;
+
+    private void Close() => Ui.CloseTask();
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "先给这件事起个名字。";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var due = ParseDue();
+            var todo = Ui.EditingTodo;
+            if (todo is null)
+            {
+                Service.CreateTodos(
+                    [
+                        new TodoCreateInput
+                        {
+                            Title = _title.Trim(),
+                            Notes = NullIfEmpty(_notes),
+                            Kind = _kind,
+                            ProjectId = NullIfEmpty(_projectId),
+                            IterationId = NullIfEmpty(_iterationId),
+                            DueAt = due,
+                            Priority = _priority,
+                        },
+                    ],
+                    WriteContext.Manual());
+                Ui.Toast("任务已加入");
+            }
+            else
+            {
+                var saved = Service.UpdateTodo(
+                    todo.Id,
+                    todo.Revision,
+                    new TodoPatch
+                    {
+                        Title = _title.Trim(),
+                        Notes = NullIfEmpty(_notes),
+                        ClearNotes = string.IsNullOrWhiteSpace(_notes),
+                        Kind = _kind,
+                        ProjectId = NullIfEmpty(_projectId),
+                        ClearProject = string.IsNullOrEmpty(_projectId),
+                        IterationId = NullIfEmpty(_iterationId),
+                        ClearIteration = string.IsNullOrEmpty(_iterationId),
+                        DueAt = due,
+                        ClearDueAt = due is null,
+                        Priority = _priority,
+                    },
+                    WriteContext.Manual());
+
+                if (_status != todo.Status || IsTerminal(_status))
+                {
+                    var artifacts = _artifactsText
+                        .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    saved = Service.SetTodoStatus(
+                        saved.Item.Id,
+                        saved.Item.Revision,
+                        _status,
+                        NullIfEmpty(_completionNote),
+                        artifacts,
+                        WriteContext.Manual());
+                }
+
+                Ui.Toast("任务已更新");
+            }
+
+            Ui.CloseTask();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Postpone()
+    {
+        if (Ui.EditingTodo is not { } todo)
+        {
+            return;
+        }
+
+        try
+        {
+            Service.PostponeTodo(todo.Id, todo.Revision, 1, WriteContext.Manual());
+            Ui.Toast("已延期 1 天");
+            Ui.CloseTask();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Delete()
+    {
+        if (!_confirmDelete)
+        {
+            _confirmDelete = true;
+            return;
+        }
+
+        if (Ui.EditingTodo is not { } todo)
+        {
+            return;
+        }
+
+        try
+        {
+            Service.DeleteTodo(todo.Id, todo.Revision, "用户删除", WriteContext.Manual());
+            Ui.Toast("任务已移入回收站");
+            Ui.CloseTask();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private DateTimeOffset? ParseDue()
+    {
+        if (string.IsNullOrWhiteSpace(_dueDate))
+        {
+            return null;
+        }
+
+        if (!DateOnly.TryParseExact(_dueDate, "yyyy-MM-dd", out var date))
+        {
+            return null;
+        }
+
+        var time = TimeOnly.TryParseExact(
+            string.IsNullOrWhiteSpace(_dueTime) ? "18:00" : _dueTime,
+            "HH:mm",
+            out var parsed)
+            ? parsed
+            : new TimeOnly(18, 0);
+        var local = date.ToDateTime(time);
+        return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+    }
+
+    private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsTerminal(TodoStatus status) =>
+        status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed or TodoStatus.Canceled;
+
+    private static string KindIcon(WorkItemKind kind) => kind switch
+    {
+        WorkItemKind.Bug => "bug",
+        WorkItemKind.Research => "research",
+        WorkItemKind.Chore => "chore",
+        _ => "check",
+    };
+
+    private static string IterationLabel(IterationDto iteration)
+    {
+        if (iteration.Level == IterationLevel.Big)
+        {
+            return $"大迭代 · {iteration.Name}";
+        }
+
+        return string.IsNullOrWhiteSpace(iteration.ParentName)
+            ? iteration.Name
+            : $"{iteration.ParentName} · {iteration.Name}";
+    }
+}
+

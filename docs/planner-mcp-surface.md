@@ -1,6 +1,6 @@
 # 待办 MCP 工具面
 
-> 状态：S0 草案，已确认方向，未实现
+> 状态：`todo_*` 13 个工具已实现（2026-11-01）。**v2/v3/v4 说明（2026-11-06）**：项目 / 大迭代 / 小迭代 / 日常提醒 / 节假日尚未暴露为 MCP 工具；`todo_*` schema 也尚未加入 `projectId` / `iterationId` / `kind`。v3 新增的 `SetTodoStatus`、`PostponeTodo`、`CompleteIteration`、`ReopenIteration` 目前只有 Core/UI，没有对应 MCP 工具；v4 的 `ListHolidays` / `SaveHoliday` / `DeleteHoliday` / `ApplyRemoteHolidays` 同样未暴露。见 [planner-v4.md](planner-v4.md)。
 > 关联：[总体架构](../../../DesktopAssembly/docs/desktop-shell.md) · [宿主控制协议](../../../docs/contracts/host-protocol.md)
 > 对端：MainAgent（MCP client）· 待办内核进程（MCP server）
 

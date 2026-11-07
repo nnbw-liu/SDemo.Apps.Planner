@@ -1,0 +1,175 @@
+@inherits PlannerPageBase
+
+<Modal Title="@(Ui.EditingProject is null ? "新建项目" : "编辑项目")"
+       Eyebrow="项目"
+       SizeClass="modal-md" OnClose="Close">
+    <ChildContent>
+    <div class="form-grid">
+        <label class="field field-full">
+            <span>项目名称</span>
+            <input class="input input-lg" placeholder="例如：SDemo 桌面" @bind="_name" @bind:event="oninput" autofocus />
+        </label>
+
+        <label class="field field-full">
+            <span>一句话说明</span>
+            <input class="input" placeholder="这个项目最终要交付什么？" @bind="_description" />
+        </label>
+
+        <div class="field field-full">
+            <span>颜色</span>
+            <div class="color-row">
+                @foreach (var color in Colors)
+                {
+                    <button type="button" class="color-dot @(_color == color ? "selected" : "")"
+                            style="--dot:@color" title="@color" @onclick="() => _color = color"></button>
+                }
+            </div>
+        </div>
+
+        <label class="field">
+            <span>开始日期</span>
+            <input class="input" type="date" value="@_startDate" @onchange="e => _startDate = DateValue(e)" />
+        </label>
+
+        <label class="field">
+            <span>目标日期</span>
+            <input class="input" type="date" value="@_targetDate" @onchange="e => _targetDate = DateValue(e)" />
+        </label>
+
+        @if (Ui.EditingProject is not null)
+        {
+            <label class="field field-full">
+                <span>状态</span>
+                <SelectBox TValue="ProjectStatus"
+                           Value="_status"
+                           ValueChanged="value => _status = value"
+                           Options="StatusOptions"
+                           Placeholder="进行中" />
+            </label>
+        }
+
+        @if (_error is not null)
+        {
+            <div class="form-error field-full">@_error</div>
+        }
+    </div>
+    </ChildContent>
+
+    <Footer>
+        <button class="btn btn-ghost" @onclick="Close">取消</button>
+        <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+            @(_saving ? "保存中…" : "保存项目")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private static readonly string[] Colors =
+        ["#4C8DFF", "#8B7CFF", "#FF7A59", "#F5B74E", "#37C978", "#F45B69", "#2BB8C9", "#C06BFF"];
+
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _color = Colors[0];
+    private string _startDate = string.Empty;
+    private string _targetDate = string.Empty;
+    private ProjectStatus _status = ProjectStatus.Active;
+    private bool _saving;
+    private string? _error;
+
+    private static IReadOnlyList<SelectOption<ProjectStatus>> StatusOptions =>
+    [
+        new(ProjectStatus.Active, "进行中"),
+        new(ProjectStatus.Paused, "已暂停"),
+        new(ProjectStatus.Done, "已完成"),
+        new(ProjectStatus.Archived, "已归档"),
+    ];
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Ui.EditingProject is { } project)
+        {
+            _name = project.Name;
+            _description = project.Description ?? string.Empty;
+            _color = project.Color;
+            _status = project.Status;
+            _startDate = project.StartAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? string.Empty;
+            _targetDate = project.TargetAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? string.Empty;
+        }
+    }
+
+    private void Close() => Ui.CloseProject();
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _error = "项目总得有个名字。";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var start = ParseDate(_startDate);
+            var target = ParseDate(_targetDate);
+            if (Ui.EditingProject is { } project)
+            {
+                Service.UpdateProject(
+                    project.Id,
+                    project.Revision,
+                    new ProjectPatch
+                    {
+                        Name = _name.Trim(),
+                        Description = _description.Trim(),
+                        ClearDescription = string.IsNullOrWhiteSpace(_description),
+                        Color = _color,
+                        Status = _status,
+                        StartAt = start,
+                        ClearStartAt = start is null,
+                        TargetAt = target,
+                        ClearTargetAt = target is null,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("项目已更新");
+            }
+            else
+            {
+                Service.CreateProject(
+                    new ProjectInput
+                    {
+                        Name = _name.Trim(),
+                        Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                        Color = _color,
+                        StartAt = start,
+                        TargetAt = target,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("项目已创建");
+            }
+
+            Ui.CloseProject();
+        }
+        catch (Exception ex) when (ex is PlannerException or ArgumentException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static DateTimeOffset? ParseDate(string value)
+    {
+        if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", out var date))
+        {
+            return null;
+        }
+
+        var local = date.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+    }
+}
+

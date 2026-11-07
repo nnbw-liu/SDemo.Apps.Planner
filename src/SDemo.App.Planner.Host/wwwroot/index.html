@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>事序</title>
+    <link rel="stylesheet" href="css/app.css" />
+    <script>
+        // 首屏前先把主题落到 <html>，避免深色界面闪一下白。
+        (function () {
+            var mode = 'system';
+            try { mode = localStorage.getItem('planner-theme') || 'system'; } catch (e) { }
+            var dark = mode === 'dark' || (mode !== 'light' && window.matchMedia &&
+                window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+            document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        })();
+    </script>
+</head>
+<body>
+    <div id="app">
+        <div class="boot-screen">
+            <div class="boot-mark">S<span>.</span></div>
+            <p>正在打开事序…</p>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        页面遇到了一点问题。
+        <a href="" class="reload">重新加载</a>
+        <span class="dismiss">×</span>
+    </div>
+
+    <script src="js/planner.js"></script>
+    <script src="_framework/blazor.webview.js"></script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 # sdemo.planner 设计（P2 / v1）
 
+> **2026-11-06 更新**：产品已升级为 v4「事序」。项目 / 大迭代 / 小迭代 / 工作项、日常提醒、Blazor UI 见 [planner-v2.md](planner-v2.md)；v3 的六状态 / 完成记录 / 延期 / 迭代完成 / 托盘见 [planner-v3.md](planner-v3.md)；v4 的更名 / 搜索 / 法定节假日见 [planner-v4.md](planner-v4.md)。本文保留 v1 的 todo/event/日历/ICS 设计，作为底层数据能力说明。v2/v3/v4 新增表与页面以新文档为准。
+
 > 状态：**P2 已实现**（2026-11-01）。本文件记录实现时的数据模型、交互与取舍；
 > 需求编号见 [requirements.md](requirements.md)，工具面见 [planner-mcp-surface.md](planner-mcp-surface.md)。
 

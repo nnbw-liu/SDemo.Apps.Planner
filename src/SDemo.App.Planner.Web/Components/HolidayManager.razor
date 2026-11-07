@@ -1,0 +1,167 @@
+@inherits PlannerPageBase
+@inject HolidaySyncService HolidaySync
+
+<Modal Title="假期安排" Eyebrow="Holidays" SizeClass="modal-lg" OnClose="Close">
+    <ChildContent>
+        <div class="holiday-toolbar">
+            <div>
+                <strong>@Year 年</strong>
+                <span class="muted">法定节假日与调休补班</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" disabled="@_syncing" @onclick="SyncAsync">
+                <Icon Name="repeat" Size="14" /> @(_syncing ? "同步中…" : "联网同步")
+            </button>
+        </div>
+
+        <p class="form-hint">联网结果只更新「联网」记录；你手动添加的日期会保留并优先显示。</p>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="form-error">@_error</div>
+        }
+
+        <div class="holiday-add">
+            <div class="field">
+                <span>日期</span>
+                <input class="input" type="date" value="@_date" @onchange="e => _date = DateValue(e)" />
+            </div>
+            <div class="field holiday-add-name">
+                <span>名称</span>
+                <input class="input" placeholder="例如：春节 / 国庆" @bind="_name" />
+            </div>
+            <div class="field">
+                <span>类型</span>
+                <div class="holiday-type-row">
+                    <button class="chip @(_isWorkday ? "" : "chip-active")" @onclick="() => _isWorkday = false">休</button>
+                    <button class="chip @(_isWorkday ? "chip-active" : "")" @onclick="() => _isWorkday = true">班</button>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-sm holiday-add-btn" @onclick="Add">添加</button>
+        </div>
+
+        @if (_holidays.Count == 0)
+        {
+            <div class="empty-inline">
+                <span class="empty-emoji">🗓️</span>
+                <div>
+                    <strong>还没有假期记录</strong>
+                    <p>可以联网同步，也可以手动添加。</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="holiday-list">
+                @foreach (var item in _holidays)
+                {
+                    <div class="holiday-row">
+                        <span class="holiday-date">@item.Date.ToString("M月d日")</span>
+                        <span class="holiday-weekday">@item.Date.ToString("ddd", CultureInfo.GetCultureInfo("zh-CN"))</span>
+                        <span class="holiday-badge @(item.IsWorkday ? "work" : "rest")">@(item.IsWorkday ? "班" : "休")</span>
+                        <strong>@item.Name</strong>
+                        <span class="holiday-source">@(item.Source == "manual" ? "手动" : "联网")</span>
+                        <button class="icon-btn" title="删除" @onclick="() => Delete(item)"><Icon Name="trash" Size="14" /></button>
+                    </div>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-ghost" @onclick="Close">关闭</button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter]
+    public int Year { get; set; } = DateTime.Today.Year;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private IReadOnlyList<HolidayDto> _holidays = [];
+    private string _date = DateTime.Today.ToString("yyyy-MM-dd");
+    private string _name = string.Empty;
+    private bool _isWorkday;
+    private bool _syncing;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Load();
+    }
+
+    private void Load() => _holidays = Service.ListHolidays(Year);
+
+    private void Add()
+    {
+        _error = null;
+        if (!DateOnly.TryParseExact(_date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            _error = "请选择日期";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _error = "请填写假期名称";
+            return;
+        }
+
+        try
+        {
+            Service.SaveHoliday(new HolidayInput
+            {
+                Date = date,
+                Name = _name.Trim(),
+                IsWorkday = _isWorkday,
+            }, WriteContext.Manual());
+            _name = string.Empty;
+            Load();
+            _ = NotifyChangedAsync();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Delete(HolidayDto item)
+    {
+        Service.DeleteHoliday(item.Date, WriteContext.Manual());
+        Load();
+        _ = NotifyChangedAsync();
+    }
+
+    private async Task SyncAsync()
+    {
+        _syncing = true;
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            var items = await HolidaySync.FetchAsync(Year);
+            var count = Service.ApplyRemoteHolidays(Year, items, WriteContext.Manual());
+            Ui.Toast($"已同步 {count} 天假期");
+            Load();
+            await NotifyChangedAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            _error = "联网同步失败，请检查网络后重试；已保留手动记录。";
+            Console.Error.WriteLine($"[holiday] {ex.Message}");
+        }
+        finally
+        {
+            _syncing = false;
+            StateHasChanged();
+        }
+    }
+
+    private Task NotifyChangedAsync() => OnChanged.InvokeAsync();
+
+    private Task Close() => OnClose.InvokeAsync();
+}

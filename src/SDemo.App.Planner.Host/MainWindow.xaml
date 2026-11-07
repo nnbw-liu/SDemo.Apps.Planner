@@ -1,76 +1,62 @@
 <Window x:Class="SDemo.App.Planner.Host.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="待办与日历 · sdemo.planner"
-        Width="1100" Height="740"
-        MinWidth="900" MinHeight="600"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:blazor="clr-namespace:Microsoft.AspNetCore.Components.WebView.Wpf;assembly=Microsoft.AspNetCore.Components.WebView.Wpf"
+        Title="事序 · 项目与日常"
+        Icon="Assets/planner.ico"
+        Width="1180" Height="740"
+        MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
-        Background="#10141D"
-        Foreground="#E8ECF4"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Background="{DynamicResource ChromeBg}"
+        Foreground="{DynamicResource ChromeText}"
         FontFamily="Microsoft YaHei UI, Segoe UI"
         FontSize="12">
 
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0"
+                            ResizeBorderThickness="6"
+                            GlassFrameThickness="0"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
     <Window.Resources>
-        <SolidColorBrush x:Key="PanelBrush" Color="#171D2A" />
-        <SolidColorBrush x:Key="CardBrush" Color="#1E2536" />
-        <SolidColorBrush x:Key="CardHoverBrush" Color="#242D42" />
-        <SolidColorBrush x:Key="BorderBrushSoft" Color="#273148" />
-        <SolidColorBrush x:Key="MutedBrush" Color="#8A94A6" />
-        <SolidColorBrush x:Key="AccentBrush" Color="#4C8DFF" />
-        <SolidColorBrush x:Key="SuccessBrush" Color="#37C978" />
-        <SolidColorBrush x:Key="DangerBrush" Color="#F45B69" />
+        <!-- 深色为默认值，MainWindow.ApplyTheme 会按主题替换这些画刷。 -->
+        <SolidColorBrush x:Key="ChromeBg" Color="#0B0F16" />
+        <SolidColorBrush x:Key="ChromeTitleBar" Color="#0D1219" />
+        <SolidColorBrush x:Key="ChromeBorder" Color="#12FFFFFF" />
+        <SolidColorBrush x:Key="ChromeText" Color="#E9EDF5" />
+        <SolidColorBrush x:Key="ChromeMuted" Color="#5D687C" />
+        <SolidColorBrush x:Key="ChromeCaptionFg" Color="#8490A5" />
+        <SolidColorBrush x:Key="ChromeHover" Color="#1B2330" />
+        <SolidColorBrush x:Key="ChromeHoverFg" Color="#E9EDF5" />
+        <SolidColorBrush x:Key="ChromePressed" Color="#232C3C" />
 
-        <Style x:Key="GhostButton" TargetType="Button">
+        <Style x:Key="CaptionButton" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="40" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#C7D2E3" />
-            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource ChromeCaptionFg}" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="10,5" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Focusable" Value="False" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="7"
-                                Padding="{TemplateBinding Padding}" BorderBrush="#2A3550" BorderThickness="1">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#232C42" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ChromeHover}" />
+                                <Setter Property="Foreground" Value="{DynamicResource ChromeHoverFg}" />
                             </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
-            <Setter Property="Background" Value="#2E63C8" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-
-        <Style x:Key="NavButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#A9B6CA" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-            <Setter Property="Padding" Value="12,9" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#1E2638" />
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ChromePressed}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -78,385 +64,61 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ChipButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#DCE5F2" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="6,2" />
-            <Setter Property="FontSize" Value="11" />
+        <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#2A3350" />
+                                <Setter TargetName="Bd" Property="Background" Value="#D93B45" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
                             </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4" />
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#B9313A" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-        </Style>
-
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#121826" />
-            <Setter Property="Foreground" Value="#E8ECF4" />
-            <Setter Property="CaretBrush" Value="#E8ECF4" />
-            <Setter Property="BorderBrush" Value="#2C3A55" />
-            <Setter Property="Padding" Value="7,5" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
-
-        <Style x:Key="TodoCard" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource CardBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushSoft}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="8,7" />
-            <Setter Property="Margin" Value="0,0,0,6" />
         </Style>
     </Window.Resources>
 
-    <Grid>
+    <Grid x:Name="RootGrid" Background="{DynamicResource ChromeBg}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="58" />
+            <RowDefinition Height="40" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
-        <!-- 顶栏：快速添加 / 搜索 / 导出 -->
-        <Border Grid.Row="0" Background="#161C28" BorderBrush="#232C3F" BorderThickness="0,0,0,1">
-            <Grid Margin="16,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="34" Height="34" CornerRadius="9" Background="#2E63C8">
-                        <TextBlock Text="待" Foreground="White" FontSize="16" FontWeight="SemiBold"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="待办与日历" FontSize="15" FontWeight="SemiBold" />
-                        <TextBlock x:Name="TodayText" FontSize="10" Foreground="{StaticResource MutedBrush}" />
-                    </StackPanel>
+        <Border x:Name="TitleBar"
+                Grid.Row="0"
+                Background="{DynamicResource ChromeTitleBar}"
+                BorderBrush="{DynamicResource ChromeBorder}"
+                BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="13,0,0,0">
+                    <Image Source="Assets/planner.ico" Width="17" Height="17"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="事序" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource ChromeText}" VerticalAlignment="Center" />
+                    <TextBlock Text="· 项目与日常" Margin="5,0,0,0" FontSize="10.5"
+                               Foreground="{DynamicResource ChromeMuted}" VerticalAlignment="Center" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"
-                            VerticalAlignment="Center" Margin="16,0">
-                    <TextBox x:Name="QuickAddBox" Width="320" Height="30" VerticalContentAlignment="Center"
-                             KeyDown="OnQuickAddKeyDown" ToolTip="输入标题后回车，直接创建一条待办" />
-                    <Button Content="添加" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
-                            Click="OnQuickAddClick" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="MinimizeButton" Style="{StaticResource CaptionButton}"
+                            Content="&#xE921;" ToolTip="最小化" Click="MinimizeButton_Click" />
+                    <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}"
+                            Content="&#xE922;" ToolTip="最大化" Click="MaximizeButton_Click" />
+                    <Button x:Name="CloseButton" Style="{StaticResource CloseButton}"
+                            Content="&#xE8BB;" ToolTip="关闭" Click="CloseButton_Click" />
                 </StackPanel>
-
-                <TextBox Grid.Column="2" x:Name="SearchBox" Width="180" Height="30" VerticalContentAlignment="Center"
-                         Margin="0,0,8,0" KeyDown="OnSearchKeyDown" ToolTip="标题 / 备注关键词，回车搜索" />
-                <Button Grid.Column="3" Content="搜索" Style="{StaticResource GhostButton}" Click="OnSearchClick" Margin="0,0,8,0" />
-                <Button Grid.Column="4" Content="导出 ICS" Style="{StaticResource GhostButton}" Click="OnExportIcsClick" Margin="0,0,8,0" />
-                <Button Grid.Column="5" Content="刷新" Style="{StaticResource GhostButton}" Click="OnRefreshAllClick" />
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="176" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <!-- 左侧导航 -->
-            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="#232C3F" BorderThickness="0,0,1,0">
-                <Grid Margin="10,14,10,10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel>
-                        <Button x:Name="NavTodos" Content="☰   待办" Tag="todos" Style="{StaticResource NavButton}"
-                                Click="OnNavClick" />
-                        <Button x:Name="NavCalendar" Content="▦   日历" Tag="calendar" Style="{StaticResource NavButton}"
-                                Click="OnNavClick" Margin="0,2,0,0" />
-                        <Button x:Name="NavTrash" Content="🗑   回收站" Tag="trash" Style="{StaticResource NavButton}"
-                                Click="OnNavClick" Margin="0,2,0,0" />
-                        <Button x:Name="NavDrafts" Content="✎   草稿" Tag="drafts" Style="{StaticResource NavButton}"
-                                Click="OnNavClick" Margin="0,2,0,0" />
-                    </StackPanel>
-
-                    <Border Grid.Row="2" Background="#141A26" BorderBrush="#232C3F" BorderThickness="1"
-                            CornerRadius="8" Padding="10,8">
-                        <StackPanel>
-                            <TextBlock Text="今天" FontSize="10" Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="StatsTodayText" Text="0 项到期" FontSize="13" FontWeight="SemiBold"
-                                       Margin="0,2,0,6" />
-                            <TextBlock x:Name="StatsMoreText" Text="逾期 0 · 完成率 —" FontSize="10"
-                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock Grid.Row="1" Text="数据只在本机 · 软删除保留 7 天" FontSize="9"
-                               Foreground="#5E6A7E" TextWrapping="Wrap" VerticalAlignment="Bottom"
-                               Margin="4,0,4,10" />
-                </Grid>
-            </Border>
-
-            <!-- 右侧视图 -->
-            <Grid Grid.Column="1" x:Name="ViewHost" Margin="16,14,16,10">
-
-                <!-- 待办列表 -->
-                <Grid x:Name="TodoPanel">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <ComboBox x:Name="StatusFilter" Width="120" Height="28" SelectionChanged="OnFilterChanged" />
-                        <ComboBox Grid.Column="1" x:Name="ListFilter" Width="130" Height="28" Margin="8,0,0,0"
-                                  SelectionChanged="OnFilterChanged" />
-                        <TextBlock Grid.Column="2" x:Name="TodoCountText" VerticalAlignment="Center" Margin="12,0,0,0"
-                                   Foreground="{StaticResource MutedBrush}" FontSize="11" />
-                        <Button Grid.Column="3" Content="清空筛选" Style="{StaticResource GhostButton}" Click="OnClearFilterClick" Margin="0,0,8,0" />
-                        <Button Grid.Column="4" Content="＋ 新建待办" Style="{StaticResource PrimaryButton}" Click="OnNewTodoClick" />
-                    </Grid>
-
-                    <ListView Grid.Row="1" x:Name="TodoList" Background="Transparent" BorderThickness="0"
-                              Foreground="#E8ECF4" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0" />
-                                <Setter Property="Background" Value="Transparent" />
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Border Style="{StaticResource TodoCard}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <Button Content="{Binding Glyph}" Tag="{Binding Id}" Click="OnToggleTodoClick"
-                                                Style="{StaticResource ChipButton}" Width="28" Height="28"
-                                                FontSize="15" VerticalAlignment="Center" />
-
-                                        <StackPanel Grid.Column="1" Margin="6,0,8,0" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding Meta}" FontSize="10"
-                                                       Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"
-                                                       Margin="0,2,0,0" />
-                                        </StackPanel>
-
-                                        <TextBlock Grid.Column="2" Text="{Binding DueText}" Foreground="{Binding DueBrush}"
-                                                   FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0" />
-
-                                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="编辑" Tag="{Binding Id}" Click="OnEditTodoClick"
-                                                    Style="{StaticResource ChipButton}" />
-                                            <Button Content="删除" Tag="{Binding Id}" Click="OnDeleteTodoClick"
-                                                    Style="{StaticResource ChipButton}" Foreground="#E08A96" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Grid>
-
-                <!-- 日历 -->
-                <Grid x:Name="CalendarPanel" Visibility="Collapsed">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Button Content="◀" Style="{StaticResource GhostButton}" Click="OnPrevRangeClick" />
-                        <Button Grid.Column="1" Content="今天" Style="{StaticResource GhostButton}" Click="OnTodayRangeClick" Margin="6,0" />
-                        <Button Grid.Column="2" Content="▶" Style="{StaticResource GhostButton}" Click="OnNextRangeClick" />
-                        <TextBlock Grid.Column="3" x:Name="RangeLabel" VerticalAlignment="Center" Margin="14,0,0,0"
-                                   FontSize="14" FontWeight="SemiBold" />
-                        <Button Grid.Column="4" x:Name="ModeMonth" Content="月" Style="{StaticResource GhostButton}" Click="OnModeClick" Tag="month" />
-                        <Button Grid.Column="5" x:Name="ModeWeek" Content="周" Style="{StaticResource GhostButton}" Click="OnModeClick" Tag="week" Margin="4,0" />
-                        <Button Grid.Column="6" x:Name="ModeDay" Content="日" Style="{StaticResource GhostButton}" Click="OnModeClick" Tag="day" Margin="0,0,8,0" />
-                        <Button Grid.Column="7" Content="＋ 新建日程" Style="{StaticResource PrimaryButton}" Click="OnNewEventClick" />
-                    </Grid>
-
-                    <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="236" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrushSoft}"
-                                BorderThickness="1" CornerRadius="10" Padding="10">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="待排期（拖到日历上）" FontWeight="SemiBold" FontSize="12" />
-                                <TextBlock Grid.Row="2" Text="拖放即设置截止日期；双击日历空白处可新建。" FontSize="9"
-                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
-                                <ListBox Grid.Row="1" x:Name="UnscheduledList" Background="Transparent" BorderThickness="0"
-                                         Margin="0,8,0,0" Foreground="#E8ECF4"
-                                         PreviewMouseLeftButtonDown="OnUnscheduledMouseDown"
-                                         PreviewMouseMove="OnUnscheduledMouseMove">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{StaticResource CardBrush}" CornerRadius="6" Padding="7,5"
-                                                    Margin="0,0,0,4">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding Title}" FontSize="11" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding Meta}" FontSize="9" Foreground="{StaticResource MutedBrush}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </Grid>
-                        </Border>
-
-                        <Border Grid.Column="1" Margin="12,0,0,0" Background="{StaticResource PanelBrush}"
-                                BorderBrush="{StaticResource BorderBrushSoft}" BorderThickness="1" CornerRadius="10"
-                                Padding="8">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-                                <Grid x:Name="CalendarHeader" Margin="0,0,0,6" />
-                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                    <Grid x:Name="CalendarGrid" />
-                                </ScrollViewer>
-                            </Grid>
-                        </Border>
-                    </Grid>
-                </Grid>
-
-                <!-- 回收站 -->
-                <Grid x:Name="TrashPanel" Visibility="Collapsed">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <StackPanel Margin="0,0,0,8">
-                        <TextBlock Text="回收站" FontSize="16" FontWeight="SemiBold" />
-                        <TextBlock Text="软删除的待办与日程保留 7 天；恢复后回到原清单。" FontSize="10"
-                                   Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ListView Grid.Row="1" x:Name="TrashList" Background="Transparent" BorderThickness="0"
-                              Foreground="#E8ECF4">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0" />
-                                <Setter Property="Background" Value="Transparent" />
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Border Style="{StaticResource TodoCard}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding Meta}" FontSize="10" Foreground="{StaticResource MutedBrush}"
-                                                       Margin="0,2,0,0" />
-                                        </StackPanel>
-                                        <Button Grid.Column="1" Content="恢复" Tag="{Binding Id}" Click="OnRestoreClick"
-                                                Style="{StaticResource GhostButton}" VerticalAlignment="Center" />
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Grid>
-
-                <!-- 草稿审阅 -->
-                <Grid x:Name="DraftsPanel" Visibility="Collapsed">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Margin="0,0,0,8">
-                        <TextBlock Text="AI 草稿" FontSize="16" FontWeight="SemiBold" />
-                        <TextBlock Text="草稿只有点「采纳」才会写进待办；可逐条改标题或拒收。" FontSize="10"
-                                   Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-
-                    <Grid Grid.Row="1" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="草稿：" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
-                        <ComboBox Grid.Column="1" x:Name="DraftCombo" Height="28" Margin="6,0,12,0"
-                                  SelectionChanged="OnDraftSelectionChanged" />
-                        <Button Grid.Column="2" Content="全选" Style="{StaticResource GhostButton}" Click="OnSelectAllDraftsClick" Margin="0,0,6,0" />
-                        <Button Grid.Column="3" Content="采纳所选" Style="{StaticResource PrimaryButton}" Click="OnAcceptDraftClick" Margin="0,0,6,0" />
-                        <Button Grid.Column="4" Content="拒绝整份" Style="{StaticResource GhostButton}" Click="OnRejectDraftClick" />
-                    </Grid>
-
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="DraftItemsPanel" />
-                    </ScrollViewer>
-                </Grid>
-            </Grid>
-        </Grid>
-
-        <Border Grid.Row="2" Background="#0C1017" BorderBrush="#232C3F" BorderThickness="0,1,0,0">
-            <Grid Margin="14,0">
-                <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="10" Foreground="#7F8CA3"
-                           Text="就绪" />
-            </Grid>
-        </Border>
+        <blazor:BlazorWebView x:Name="WebView" Grid.Row="1" HostPage="wwwroot/index.html" />
     </Grid>
 </Window>

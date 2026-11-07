@@ -1,0 +1,186 @@
+@inherits PlannerPageBase
+@* 延期弹窗：1 天 / 1 周 / 1 月 / 指定时间。 *@
+@if (Ui.PostponingTodo is { } todo)
+{
+    <Modal Title="延期任务" Eyebrow="@todo.Title" SizeClass="modal-md" OnClose="Close">
+        <ChildContent>
+            <p class="postpone-hint">
+                当前截止：<strong>@FormatDue(todo.DueAt)</strong>
+            </p>
+
+            <div class="postpone-grid">
+                <button type="button" class="postpone-option" @onclick="() => PostponeDays(1)" disabled="@_busy">
+                    <strong>延期 1 天</strong>
+                    <small>推迟到明天</small>
+                </button>
+                <button type="button" class="postpone-option" @onclick="() => PostponeDays(7)" disabled="@_busy">
+                    <strong>延期 1 周</strong>
+                    <small>推迟 7 天</small>
+                </button>
+                <button type="button" class="postpone-option" @onclick="PostponeMonth" disabled="@_busy">
+                    <strong>延期 1 个月</strong>
+                    <small>按日历月顺延</small>
+                </button>
+                <button type="button" class="postpone-option @(_custom ? "active" : "")" @onclick="ShowCustom" disabled="@_busy">
+                    <strong>指定时间</strong>
+                    <small>自己选日期和时间</small>
+                </button>
+            </div>
+
+            @if (_custom)
+            {
+                <div class="postpone-custom">
+                    <label class="field">
+                        <span>日期</span>
+                        <input class="input" type="date" value="@_date" @onchange="e => _date = DateValue(e)" />
+                    </label>
+                    <label class="field">
+                        <span>时间</span>
+                        <input class="input" type="time" value="@_time" @onchange="e => _time = TimeValue(e)" />
+                    </label>
+                </div>
+                @if (_error is not null)
+                {
+                    <div class="form-error">@_error</div>
+                }
+            }
+        </ChildContent>
+
+        <Footer>
+            <button class="btn btn-ghost" @onclick="Close">取消</button>
+            @if (_custom)
+            {
+                <button class="btn btn-primary" @onclick="ApplyCustom" disabled="@_busy">
+                    @(_busy ? "保存中…" : "确认延期")
+                </button>
+            }
+        </Footer>
+    </Modal>
+}
+
+@code {
+    private bool _custom;
+    private bool _busy;
+    private string _date = string.Empty;
+    private string _time = string.Empty;
+    private string? _error;
+
+    private void Close() => Ui.ClosePostpone();
+
+    private void ShowCustom()
+    {
+        if (_custom)
+        {
+            return;
+        }
+
+        if (Ui.PostponingTodo is { } todo && todo.DueAt is { } due && due > DateTimeOffset.Now)
+        {
+            var local = due.ToLocalTime().AddDays(1);
+            _date = local.ToString("yyyy-MM-dd");
+            _time = local.ToString("HH:mm");
+        }
+        else
+        {
+            var target = DateTimeOffset.Now.AddDays(1);
+            _date = target.ToString("yyyy-MM-dd");
+            _time = target.ToString("HH:mm");
+        }
+
+        _custom = true;
+        _error = null;
+    }
+
+    private async Task PostponeDays(int days)
+    {
+        if (Ui.PostponingTodo is not { } todo)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = Service.PostponeTodo(todo.Id, todo.Revision, days, WriteContext.Manual());
+            Ui.Toast($"「{todo.Title}」已延期到 {FormatDue(result.Item.DueAt)}");
+            Ui.ClosePostpone();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+            Ui.Toast(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task PostponeMonth()
+    {
+        if (Ui.PostponingTodo is not { } todo)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.Now;
+        var baseAt = todo.DueAt is { } due && due > now ? due.ToLocalTime() : now;
+        var target = baseAt.AddMonths(1);
+        await Apply(todo, target);
+    }
+
+    private async Task ApplyCustom()
+    {
+        if (Ui.PostponingTodo is not { } todo)
+        {
+            return;
+        }
+
+        if (!DateOnly.TryParseExact(_date, "yyyy-MM-dd", out var date))
+        {
+            _error = "请选择有效日期";
+            return;
+        }
+
+        var time = TimeOnly.TryParseExact(string.IsNullOrWhiteSpace(_time) ? "18:00" : _time, "HH:mm", out var parsed)
+            ? parsed
+            : new TimeOnly(18, 0);
+        var local = date.ToDateTime(time);
+        var target = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+        if (target <= DateTimeOffset.Now)
+        {
+            _error = "延期时间需要晚于当前时间";
+            return;
+        }
+
+        await Apply(todo, target);
+    }
+
+    private async Task Apply(TodoDto todo, DateTimeOffset target)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = Service.UpdateTodo(
+                todo.Id,
+                todo.Revision,
+                new TodoPatch { DueAt = target },
+                WriteContext.Manual());
+            Ui.Toast($"「{todo.Title}」已延期到 {FormatDue(result.Item.DueAt)}");
+            Ui.ClosePostpone();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        await Task.CompletedTask;
+    }
+}

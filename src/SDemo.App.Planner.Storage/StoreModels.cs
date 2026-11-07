@@ -54,11 +54,79 @@ public sealed class EventWrite
     public string? Reason { get; init; }
 }
 
+public sealed class ProjectWrite
+{
+    public required ProjectRow Row { get; init; }
+
+    public required string Op { get; init; }
+
+    public int? ExpectedRevision { get; init; }
+
+    public string Actor { get; init; } = "manual";
+
+    public string? RequestId { get; init; }
+
+    public string? Reason { get; init; }
+}
+
+public sealed class IterationWrite
+{
+    public required IterationRow Row { get; init; }
+
+    public required string Op { get; init; }
+
+    public int? ExpectedRevision { get; init; }
+
+    public string Actor { get; init; } = "manual";
+
+    public string? RequestId { get; init; }
+
+    public string? Reason { get; init; }
+}
+
+public sealed class RoutineWrite
+{
+    public required RoutineRow Row { get; init; }
+
+    public required string Op { get; init; }
+
+    public int? ExpectedRevision { get; init; }
+
+    public string Actor { get; init; } = "manual";
+
+    public string? RequestId { get; init; }
+
+    public string? Reason { get; init; }
+}
+
+public sealed class HolidayWrite
+{
+    public required HolidayRow Row { get; init; }
+
+    public required string Op { get; init; }
+
+    public string Actor { get; init; } = "manual";
+
+    public string? RequestId { get; init; }
+
+    public string? Reason { get; init; }
+}
+
 public sealed record TodoFilter
 {
     public string Status { get; init; } = "open";
 
     public string? ListId { get; init; }
+
+    public string? ProjectId { get; init; }
+
+    public string? IterationId { get; init; }
+
+    /// <summary>task / bug / research / chore。</summary>
+    public string? Kind { get; init; }
+
+    /// <summary>只取未归属项目的条目。</summary>
+    public bool NoProject { get; init; }
 
     public DateTime? DueBeforeUtc { get; init; }
 
@@ -67,6 +135,9 @@ public sealed record TodoFilter
     public string? TagId { get; init; }
 
     public string? Keyword { get; init; }
+
+    /// <summary>due / priority / updated / created。</summary>
+    public string Sort { get; init; } = "due";
 
     public int Limit { get; init; } = 20;
 

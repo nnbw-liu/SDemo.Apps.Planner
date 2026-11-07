@@ -1,0 +1,38 @@
+@implements IDisposable
+@inject PlannerUi Ui
+
+<div class="toast-stack" aria-live="polite">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast" @key="toast.Id">
+            <span class="toast-check"><Icon Name="check" Size="15" /></span>
+            <span>@toast.Message</span>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly List<ToastItem> _toasts = [];
+    private int _nextId;
+
+    protected override void OnInitialized() => Ui.ToastRequested += OnToast;
+
+    private void OnToast(string message)
+    {
+        var item = new ToastItem(++_nextId, message);
+        _toasts.Add(item);
+        _ = InvokeAsync(StateHasChanged);
+        _ = RemoveLater(item);
+    }
+
+    private async Task RemoveLater(ToastItem item)
+    {
+        await Task.Delay(3200);
+        _toasts.Remove(item);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Ui.ToastRequested -= OnToast;
+
+    private sealed record ToastItem(int Id, string Message);
+}

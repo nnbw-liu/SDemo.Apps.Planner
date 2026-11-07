@@ -1,10 +1,15 @@
+using System.ComponentModel;
 using System.IO;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Windows;
+using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using SDemo.App.Planner.Contracts;
 using SDemo.App.Planner.Core;
 using SDemo.App.Planner.Mcp;
 using SDemo.App.Planner.Storage;
+using SDemo.App.Planner.Web;
 
 namespace SDemo.App.Planner.Host;
 
@@ -129,33 +134,72 @@ internal static class Program
             return 0;
         }
 
-        return RunDesktop(server, service, token, widgetOnly, hostPresent);
+        var services = new ServiceCollection();
+        services.AddWpfBlazorWebView();
+        services.AddSingleton(service);
+        services.AddSingleton<PlannerUi>();
+        services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(15) });
+        services.AddSingleton<HolidaySyncService>();
+        var lifecycle = new HostAppLifecycle();
+        services.AddSingleton<IAppLifecycle>(lifecycle);
+        services.AddSingleton<IThemeHost, HostThemeBridge>();
+        services.AddScoped<ThemeService>();
+        using var provider = services.BuildServiceProvider();
+
+        return RunDesktop(server, service, token, provider, lifecycle, widgetOnly, hostPresent);
     }
 
     private static int RunDesktop(
         AppServer server,
         PlannerService service,
         string token,
+        IServiceProvider services,
+        HostAppLifecycle lifecycle,
         bool widgetOnly,
         bool hostPresent)
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         MainWindow? main = null;
         WidgetWindow? widget = null;
+        TrayIcon? tray = null;
+        var allowClose = false;
+
+        var reminders = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(30),
+        };
+        reminders.Tick += (_, _) => PumpReminders(service);
+
+        void WireMain(MainWindow window)
+        {
+            window.Closing += (_, e) =>
+            {
+                if (allowClose)
+                {
+                    return;
+                }
+
+                // 关闭主窗口只收进托盘；提醒依赖进程继续活着。
+                e.Cancel = true;
+                window.Hide();
+                PlannerLog.Info("主窗口已收进托盘，日常提醒继续运行");
+            };
+
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(main, window))
+                {
+                    main = null;
+                }
+            };
+        }
 
         void OpenMain()
         {
             if (main is null)
             {
-                main = new MainWindow(service);
-                main.Closed += (_, _) =>
-                {
-                    main = null;
-                    if (!hostPresent)
-                    {
-                        app.Shutdown();
-                    }
-                };
+                main = new MainWindow(services);
+                WireMain(main);
             }
 
             main.Show();
@@ -175,26 +219,29 @@ internal static class Program
         }
         else if (!hostPresent)
         {
-            main = new MainWindow(service);
-            main.Closed += (_, _) =>
-            {
-                main = null;
-                app.Shutdown();
-            };
+            main = new MainWindow(services);
+            WireMain(main);
         }
         else
         {
             // 宿主拉起时只显示组件；主窗口按需从组件里打开。
         }
 
-        server.CommandReceived = widget.ApplyCommand;
-        server.StateProvider = widget.GetState;
-        server.ShutdownRequested = () => app.Dispatcher.BeginInvoke(new Action(() =>
+        void ExitApp()
         {
-            widget.Close();
+            allowClose = true;
+            tray?.Dispose();
+            tray = null;
+            widget?.Close();
             main?.Close();
             app.Shutdown();
-        }));
+        }
+
+        lifecycle.ExitRequested = () => app.Dispatcher.BeginInvoke(new Action(ExitApp));
+
+        server.CommandReceived = widget.ApplyCommand;
+        server.StateProvider = widget.GetState;
+        server.ShutdownRequested = () => app.Dispatcher.BeginInvoke(new Action(ExitApp));
 
         var registration = new HostRegistration(token);
         widget.Show();
@@ -210,7 +257,6 @@ internal static class Program
         if (main is not null)
         {
             app.MainWindow = main;
-            main.Show();
             if (!hostPresent)
             {
                 widget.Show();
@@ -221,18 +267,52 @@ internal static class Program
             app.MainWindow = widget;
         }
 
+        tray = new TrayIcon(OpenMain, ExitApp);
+
         try
         {
-            app.Run();
+            reminders.Start();
+            PumpReminders(service);
+
+            // 必须让 Application 的事件循环先启动，再让窗口承载 WebView2；
+            // 提前 Show() 会触发 EnsureCoreWebView2Async 的时序异常。
+            if (main is not null)
+            {
+                app.Run(main);
+            }
+            else
+            {
+                app.Run();
+            }
         }
         finally
         {
+            reminders.Stop();
+            tray?.Dispose();
+            tray = null;
             server.Stop();
             AppServer.DeleteRuntimeFile(PlannerConstants.AppId);
             PlannerLog.Info("应用退出");
         }
 
         return 0;
+    }
+
+    private static void PumpReminders(PlannerService service)
+    {
+        try
+        {
+            var due = service.CollectDueReminders();
+            if (due.Count > 0)
+            {
+                PlannerLog.Info($"触发 {due.Count} 条日常提醒：{string.Join("、", due.Select(r => r.Title))}");
+                ReminderToastWindow.ShowReminders(due);
+            }
+        }
+        catch (Exception ex)
+        {
+            PlannerLog.Error("提醒检查失败", ex);
+        }
     }
 
     private static bool HasFlag(string[] args, string flag) =>

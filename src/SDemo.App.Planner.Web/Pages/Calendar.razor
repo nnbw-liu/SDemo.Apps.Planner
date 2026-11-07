@@ -1,0 +1,291 @@
+@page "/calendar"
+@inherits PlannerPageBase
+
+<PageTitle>日历 · 事序</PageTitle>
+
+<div class="page-toolbar">
+    <div class="calendar-nav">
+        <button class="icon-btn" title="上个月" @onclick="() => Move(-1)"><Icon Name="chevron-right" Size="16" class="flip" /></button>
+        <button class="btn btn-ghost btn-sm" @onclick="Today">今天</button>
+        <button class="icon-btn" title="下个月" @onclick="() => Move(1)"><Icon Name="chevron-right" Size="16" /></button>
+        <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenEvent(date: _selected)"><Icon Name="calendar" Size="14" /> 日程</button>
+        <button class="btn btn-ghost btn-sm" @onclick="() => _holidayOpen = true"><Icon Name="calendar" Size="14" /> 假期</button>
+    </div>
+</div>
+
+<section class="card calendar-card">
+    <div class="calendar-title">
+        <h2>@_month.ToString("yyyy年 M月", CultureInfo.GetCultureInfo("zh-CN"))</h2>
+        <div class="calendar-legend">
+            <span><i class="legend-dot task"></i>任务</span>
+            <span><i class="legend-dot event"></i>日程</span>
+            <span><i class="legend-dot done"></i>已完成</span>
+            <span><i class="legend-badge rest">休</i>休息日</span>
+        </div>
+    </div>
+
+    <div class="calendar-weekdays">
+        @foreach (var day in Weekdays)
+        {
+            <span>@day</span>
+        }
+    </div>
+
+    <div class="calendar-grid">
+        @foreach (var cell in Cells)
+        {
+            var items = ItemsOn(cell.Date);
+            var cellHoliday = HolidayOn(cell.Date);
+            <button class="calendar-cell @(cell.IsCurrentMonth ? "" : "outside") @(cell.Date == DateTime.Today ? "today" : "") @(cell.Date == _selected ? "selected" : "") @(cell.IsWeekend ? "weekend" : "") @(cellHoliday is null ? "" : (cellHoliday.IsWorkday ? "has-holiday is-workday" : "has-holiday"))"
+                    @onclick="() => Select(cell.Date)">
+                <div class="calendar-cell-head">
+                    <span class="day-number">@cell.Date.Day</span>
+                    @if (cellHoliday is not null)
+                    {
+                        <span class="holiday-badge @(cellHoliday.IsWorkday ? "work" : "rest")" title="@cellHoliday.Name">@(cellHoliday.IsWorkday ? "班" : "休")</span>
+                    }
+                    else if (cell.IsWeekend)
+                    {
+                        <span class="holiday-badge weekend" title="周末休息">休</span>
+                    }
+                    @if (cell.Date == DateTime.Today)
+                    {
+                        <span class="today-label">今天</span>
+                    }
+                </div>
+                <div class="calendar-cell-items">
+                    @if (cellHoliday is not null)
+                    {
+                        <span class="cell-holiday-name @(cellHoliday.IsWorkday ? "work" : "rest")">@cellHoliday.Name</span>
+                    }
+                    @foreach (var item in items.Take(3))
+                    {
+                        <span class="calendar-item @item.Class @(item.Done ? "done" : "")">
+                            @if (item.Kind == CalendarItemKind.Event)
+                            {
+                                <i class="item-time">@item.Time</i>
+                            }
+                            else
+                            {
+                                <i class="item-dot" style="--dot:@item.Color"></i>
+                            }
+                            <span>@item.Title</span>
+                        </span>
+                    }
+                    @if (items.Count > 3)
+                    {
+                        <span class="calendar-more">+@(items.Count - 3) 更多</span>
+                    }
+                </div>
+                <span class="cell-add" title="在这天新建任务"
+                      @onclick:stopPropagation="true"
+                      @onclick="() => AddTask(cell.Date)">
+                    <Icon Name="plus" Size="13" />
+                </span>
+            </button>
+        }
+    </div>
+</section>
+
+<section class="day-agenda card">
+    <header class="card-head">
+        <div>
+            <span class="eyebrow">@_selected.ToString("dddd", CultureInfo.GetCultureInfo("zh-CN"))</span>
+            <h3>@_selected.ToString("M月d日")</h3>
+            @if (HolidayOn(_selected) is { } todayHoliday)
+            {
+                <span class="holiday-chip @(todayHoliday.IsWorkday ? "work" : "rest")">
+                    @(todayHoliday.IsWorkday ? "班" : "休") · @todayHoliday.Name
+                </span>
+            }
+        </div>
+        <span class="muted">@SelectedTasks.Count 个任务 · @SelectedEvents.Count 个日程</span>
+    </header>
+
+    @if (SelectedTasks.Count == 0 && SelectedEvents.Count == 0)
+    {
+        <div class="empty-inline">
+            <span class="empty-emoji">🌤️</span>
+            <div>
+                <strong>这一天是空的</strong>
+                <p>没有任务和日程。留白也可以，或者现在加一件事。</p>
+            </div>
+            <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenTask()">添加任务</button>
+        </div>
+    }
+    else
+    {
+        <div class="agenda">
+            @foreach (var evt in SelectedEvents)
+            {
+                <div class="event-row event-row-click" @onclick="() => Ui.OpenEvent(evt)" role="button" tabindex="0">
+                    <div class="event-time">
+                        <strong>@evt.StartAt.ToLocalTime().ToString("HH:mm")</strong>
+                        <span>@evt.EndAt.ToLocalTime().ToString("HH:mm")</span>
+                    </div>
+                    <div class="event-line"></div>
+                    <div class="event-main">
+                        <strong>@evt.Title</strong>
+                        <small>@(string.IsNullOrWhiteSpace(evt.Location) ? "日程" : evt.Location)</small>
+                    </div>
+                </div>
+            }
+            @foreach (var todo in SelectedTasks)
+            {
+                <TaskRow Todo="todo" ShowProject="true" />
+            }
+        </div>
+    }
+</section>
+
+@if (_holidayOpen)
+{
+    <HolidayManager Year="_month.Year" OnClose="() => _holidayOpen = false" OnChanged="Reload" />
+}
+
+@code {
+    private static readonly string[] Weekdays = ["一", "二", "三", "四", "五", "六", "日"];
+
+    private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _selected = DateTime.Today;
+    private IReadOnlyList<TodoDto> _tasks = [];
+    private IReadOnlyList<EventDto> _events = [];
+    private IReadOnlyDictionary<DateOnly, HolidayDto> _holidays = new Dictionary<DateOnly, HolidayDto>();
+    private bool _holidayOpen;
+
+    private IReadOnlyList<CalendarCell> Cells
+    {
+        get
+        {
+            var offset = RoutineDays.BitFor(_month.DayOfWeek);
+            var start = _month.AddDays(-offset);
+            return Enumerable.Range(0, 42)
+                .Select(i =>
+                {
+                    var date = start.AddDays(i);
+                    return new CalendarCell(
+                        date,
+                        date.Month == _month.Month && date.Year == _month.Year,
+                        date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday);
+                })
+                .ToList();
+        }
+    }
+
+    private IReadOnlyList<TodoDto> SelectedTasks =>
+        _tasks.Where(t => t.DueAt is not null && t.DueAt.Value.ToLocalTime().Date == _selected)
+            .OrderBy(t => t.Status == TodoStatus.Done)
+            .ThenBy(t => t.DueAt)
+            .ToList();
+
+    private IReadOnlyList<EventDto> SelectedEvents =>
+        _events.Where(e => e.StartAt.ToLocalTime().Date == _selected)
+            .OrderBy(e => e.StartAt)
+            .ToList();
+
+    protected override void Reload()
+    {
+        var offset = RoutineDays.BitFor(_month.DayOfWeek);
+        var start = _month.AddDays(-offset);
+        var end = start.AddDays(42);
+        var from = new DateTimeOffset(start, TimeZoneInfo.Local.GetUtcOffset(start));
+        var to = new DateTimeOffset(end, TimeZoneInfo.Local.GetUtcOffset(end));
+        var range = Service.CalendarRange(from, to);
+        _tasks = range.Todos;
+        _events = range.Events;
+
+        var years = new[] { start.Year, end.Year }.Distinct();
+        _holidays = years
+            .SelectMany(Service.ListHolidays)
+            .GroupBy(h => h.Date)
+            .ToDictionary(g => g.Key, g => g.First());
+    }
+
+    private HolidayDto? HolidayOn(DateTime date) =>
+        _holidays.GetValueOrDefault(DateOnly.FromDateTime(date));
+
+    protected override void OnParametersSet()
+    {
+        if (_selected < _month || _selected >= _month.AddMonths(1))
+        {
+            _selected = _month;
+        }
+    }
+
+    private void Move(int delta)
+    {
+        _month = _month.AddMonths(delta);
+        _selected = _month;
+        Reload();
+    }
+
+    private void Today()
+    {
+        _month = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        _selected = DateTime.Today;
+        Reload();
+    }
+
+    private void Select(DateTime date)
+    {
+        _selected = date;
+        if (date.Month != _month.Month || date.Year != _month.Year)
+        {
+            _month = new DateTime(date.Year, date.Month, 1);
+            Reload();
+        }
+    }
+
+    private void AddTask(DateTime date)
+    {
+        _selected = date;
+        Ui.OpenTask(dueDate: date.Date);
+    }
+
+    private IReadOnlyList<CalendarItem> ItemsOn(DateTime date)
+    {
+        var items = new List<CalendarItem>();
+        foreach (var evt in _events.Where(e => e.StartAt.ToLocalTime().Date == date))
+        {
+            items.Add(new CalendarItem(
+                evt.Id,
+                CalendarItemKind.Event,
+                evt.Title,
+                evt.StartAt.ToLocalTime().ToString("HH:mm"),
+                "#A78BFA",
+                false,
+                "event"));
+        }
+
+        foreach (var todo in _tasks.Where(t => t.DueAt is not null && t.DueAt.Value.ToLocalTime().Date == date))
+        {
+            items.Add(new CalendarItem(
+                todo.Id,
+                CalendarItemKind.Task,
+                todo.Title,
+                todo.DueAt!.Value.ToLocalTime().ToString("HH:mm"),
+                todo.ProjectColor ?? "#4C8DFF",
+                todo.Status == TodoStatus.Done,
+                "task"));
+        }
+
+        return items.OrderBy(i => i.Time).ToList();
+    }
+
+    private sealed record CalendarCell(DateTime Date, bool IsCurrentMonth, bool IsWeekend);
+
+    private enum CalendarItemKind
+    {
+        Task,
+        Event,
+    }
+
+    private sealed record CalendarItem(
+        string Id,
+        CalendarItemKind Kind,
+        string Title,
+        string Time,
+        string Color,
+        bool Done,
+        string Class);
+}

@@ -1,0 +1,261 @@
+@typeparam TValue
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject PlannerUi Ui
+
+<div class="selectbox @(Compact ? "compact" : "") @(Disabled ? "disabled" : "") @Class" @ref="_container">
+    <button type="button"
+            @ref="_trigger"
+            class="selectbox-trigger"
+            disabled="@Disabled"
+            aria-haspopup="listbox"
+            aria-expanded="@_open"
+            @onclick="Toggle"
+            @onkeydown="OnKeyDown">
+        <span @ref="_value" class="selectbox-value @(HasValue ? "" : "placeholder")">@SelectedLabel</span>
+        <Icon Name="chevron-down" Size="14" Class="@ChevronClass" />
+    </button>
+
+    @if (_open)
+    {
+        <div class="selectbox-menu @(Compact ? "compact" : "")" style="@_style" role="listbox">
+            @foreach (var option in Options)
+            {
+                var selected = EqualityComparer<TValue>.Default.Equals(option.Value, Value);
+                <button type="button"
+                        class="selectbox-option @(selected ? "selected" : "")"
+                        role="option"
+                        aria-selected="@selected"
+                        @onclick="() => Choose(option)">
+                    <span class="selectbox-option-text">
+                        <span>@option.Label</span>
+                        @if (!string.IsNullOrWhiteSpace(option.Hint))
+                        {
+                            <small>@option.Hint</small>
+                        }
+                    </span>
+                    @if (selected)
+                    {
+                        <Icon Name="check" Size="14" />
+                    }
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public TValue Value { get; set; } = default!;
+    [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
+    [Parameter] public IReadOnlyList<SelectOption<TValue>> Options { get; set; } = [];
+    [Parameter] public string Placeholder { get; set; } = "请选择";
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>附加到根节点的 class，用于局部调整宽度/字号。</summary>
+    [Parameter] public string? Class { get; set; }
+
+    private ElementReference _container;
+    private ElementReference _trigger;
+    private ElementReference _value;
+    private DotNetObjectReference<SelectBox<TValue>>? _self;
+    private bool _open;
+    private bool _measured;
+    private bool _watching;
+    private bool _compactChecked;
+    private bool _compactActive;
+    private bool _valueInitialized;
+    private TValue _lastValue = default!;
+    private string _style = "";
+    private readonly Guid _id = Guid.NewGuid();
+
+    private string ChevronClass => _open ? "selectbox-chevron open" : "selectbox-chevron";
+
+    private SelectOption<TValue>? SelectedOption =>
+        Options.FirstOrDefault(option => EqualityComparer<TValue>.Default.Equals(option.Value, Value));
+
+    private bool HasValue => SelectedOption is not null && SelectedOption.Value is not string { Length: 0 };
+
+    private string SelectedLabel
+    {
+        get
+        {
+            var option = SelectedOption;
+            if (option is null)
+            {
+                return Placeholder;
+            }
+
+            if (_compactActive && !string.IsNullOrWhiteSpace(option.CompactLabel))
+            {
+                return option.CompactLabel;
+            }
+
+            return option.Label;
+        }
+    }
+
+    private void Toggle()
+    {
+        if (Disabled)
+        {
+            return;
+        }
+
+        if (!_open)
+        {
+            Ui.NotifySelectOpened(_id);
+        }
+
+        _open = !_open;
+        _measured = false;
+    }
+
+    private void Close()
+    {
+        _open = false;
+        _measured = false;
+    }
+
+    [JSInvokable]
+    public void CloseFromOutside()
+    {
+        if (!_open)
+        {
+            return;
+        }
+
+        Close();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Choose(SelectOption<TValue> option)
+    {
+        _open = false;
+        _measured = false;
+        await ValueChanged.InvokeAsync(option.Value);
+    }
+
+    private void OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape" && _open)
+        {
+            Close();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_open && !_watching)
+        {
+            _watching = true;
+            _self ??= DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("plannerSelect.watchOutside", _container, _self);
+            }
+            catch (JSDisconnectedException)
+            {
+                // WebView 正在关闭。
+            }
+        }
+        else if (!_open && _watching)
+        {
+            _watching = false;
+            try
+            {
+                await JS.InvokeVoidAsync("plannerSelect.unwatchOutside", _container);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (_open && !_measured)
+        {
+            _measured = true;
+            try
+            {
+                var rect = await JS.InvokeAsync<SelectMenuRect>("plannerSelect.measure", _trigger, Options.Count);
+                _style = $"left:{rect.Left:0}px;top:{rect.Top:0}px;width:{rect.Width:0}px;";
+                StateHasChanged();
+            }
+            catch (JSDisconnectedException)
+            {
+                // WebView 正在关闭，不需要再处理。
+            }
+        }
+
+        if (!_compactChecked && SelectedOption is { CompactLabel.Length: > 0 })
+        {
+            _compactChecked = true;
+            try
+            {
+                if (await JS.InvokeAsync<bool>("plannerSelect.overflowing", _value))
+                {
+                    _compactActive = true;
+                    StateHasChanged();
+                }
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Ui.SelectOpened += OnSelectOpened;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!_valueInitialized)
+        {
+            _valueInitialized = true;
+            _lastValue = Value;
+            return;
+        }
+
+        if (!EqualityComparer<TValue>.Default.Equals(_lastValue, Value))
+        {
+            _lastValue = Value;
+            _compactActive = false;
+            _compactChecked = false;
+        }
+    }
+
+    private void OnSelectOpened(Guid id)
+    {
+        if (id == _id || !_open)
+        {
+            return;
+        }
+
+        _open = false;
+        _measured = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Ui.SelectOpened -= OnSelectOpened;
+
+        if (_watching)
+        {
+            _watching = false;
+            try
+            {
+                await JS.InvokeVoidAsync("plannerSelect.unwatchOutside", _container);
+            }
+            catch
+            {
+                // 组件树已销毁 / WebView 已关闭时忽略。
+            }
+        }
+
+        _self?.Dispose();
+    }
+
+    private sealed record SelectMenuRect(double Left, double Top, double Width);
+}

@@ -16,6 +16,35 @@ public enum TodoStatus
 
     [JsonStringEnumMemberName("done")]
     Done = 2,
+
+    /// <summary>已完成并通过验收。</summary>
+    [JsonStringEnumMemberName("verified")]
+    Verified = 3,
+
+    /// <summary>已关闭但不再继续推进（保留记录）。</summary>
+    [JsonStringEnumMemberName("closed")]
+    Closed = 4,
+
+    /// <summary>已取消，不计入完成率。</summary>
+    [JsonStringEnumMemberName("canceled")]
+    Canceled = 5,
+}
+
+/// <summary>工作项列表的排序方式。默认按截止时间，UI 可切到优先级。</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TodoSort>))]
+public enum TodoSort
+{
+    [JsonStringEnumMemberName("due")]
+    Due = 0,
+
+    [JsonStringEnumMemberName("priority")]
+    Priority = 1,
+
+    [JsonStringEnumMemberName("updated")]
+    Updated = 2,
+
+    [JsonStringEnumMemberName("created")]
+    Created = 3,
 }
 
 /// <summary>条目的来源。MCP 侧不接受自称 manual，避免 AI 条目伪装成用户手动录入。</summary>

@@ -1,0 +1,18 @@
+@using SDemo.App.Planner.Web.Pages
+
+<Router AppAssembly="@typeof(Routes).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <div class="empty-state">
+                <div class="empty-emoji">🧭</div>
+                <h2>这个页面还不存在</h2>
+                <p>回到首页，继续今天的工作。</p>
+                <a class="btn btn-primary" href="/">回到首页</a>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>

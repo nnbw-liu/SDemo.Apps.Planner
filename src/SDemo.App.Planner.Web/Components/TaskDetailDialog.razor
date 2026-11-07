@@ -1,0 +1,181 @@
+@inherits PlannerPageBase
+@* 任务只读详情。状态/编辑/延期入口在列表行上，详情里保留「标记完成」与「编辑」。 *@
+@if (Ui.ViewingTodo is { } todo)
+{
+    <Modal Title="@todo.Title" Eyebrow="任务详情" SizeClass="modal-md" OnClose="Close">
+        <ChildContent>
+            <div class="task-detail-badges">
+                <span class="status-pill @StatusClass(todo.Status)">@StatusLabel(todo.Status)</span>
+                <span class="kind @KindClass(todo.Kind)">
+                    <Icon Name="@KindIcon(todo.Kind)" Size="12" /> @KindLabel(todo.Kind)
+                </span>
+                @if (todo.Priority == 1)
+                {
+                    <span class="task-detail-flag"><Icon Name="flame" Size="12" /> 高优先级</span>
+                }
+            </div>
+
+            <dl class="detail-grid">
+                <div>
+                    <dt>项目</dt>
+                    <dd>
+                        @if (todo.ProjectName is not null)
+                        {
+                            <span class="meta-item">
+                                <span class="project-dot" style="--dot:@(todo.ProjectColor ?? "#4C8DFF")"></span>
+                                @todo.ProjectName
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="detail-empty">未归属项目</span>
+                        }
+                    </dd>
+                </div>
+                <div>
+                    <dt>迭代</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(todo.IterationName) ? "未挂迭代" : todo.IterationName)</dd>
+                </div>
+                <div>
+                    <dt>截止时间</dt>
+                    <dd>@FormatTime(todo.DueAt)</dd>
+                </div>
+                <div>
+                    <dt>创建于</dt>
+                    <dd>@FormatTime(todo.CreatedAt)</dd>
+                </div>
+                <div>
+                    <dt>更新于</dt>
+                    <dd>@FormatTime(todo.UpdatedAt)</dd>
+                </div>
+                <div>
+                    <dt>完成于</dt>
+                    <dd>@FormatTime(todo.CompletedAt)</dd>
+                </div>
+            </dl>
+
+            <section class="task-detail-section">
+                <span class="eyebrow">任务说明</span>
+                @if (!string.IsNullOrWhiteSpace(todo.Notes))
+                {
+                    <p class="task-detail-notes">@todo.Notes</p>
+                }
+                else
+                {
+                    <p class="task-detail-notes empty">还没有填写说明。点右下角「编辑任务」补充背景、验收标准或参考链接。</p>
+                }
+            </section>
+
+            @if (!string.IsNullOrWhiteSpace(todo.CompletionNote))
+            {
+                <section class="task-detail-section">
+                    <span class="eyebrow">完成说明</span>
+                    <p class="task-detail-notes">@todo.CompletionNote</p>
+                </section>
+            }
+
+            @if (todo.Artifacts.Count > 0)
+            {
+                <section class="task-detail-section">
+                    <span class="eyebrow">产物 / 链接</span>
+                    <ul class="task-detail-artifacts">
+                        @foreach (var artifact in todo.Artifacts)
+                        {
+                            <li>
+                                @if (Uri.TryCreate(artifact, UriKind.Absolute, out var uri))
+                                {
+                                    <a href="@uri" target="_blank" rel="noreferrer">@artifact</a>
+                                }
+                                else
+                                {
+                                    <span>@artifact</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            @if (todo.Tags.Count > 0)
+            {
+                <section class="task-detail-section">
+                    <span class="eyebrow">标签</span>
+                    <p class="task-detail-notes">#@string.Join(" #", todo.Tags)</p>
+                </section>
+            }
+        </ChildContent>
+
+        <Footer>
+            <button class="btn btn-ghost" @onclick="Close">关闭</button>
+            @if (!IsTerminal(todo.Status))
+            {
+                <button class="btn btn-ghost" @onclick="Complete">
+                    <Icon Name="check" Size="15" /> 标记完成
+                </button>
+            }
+            <button class="btn btn-primary" @onclick="Edit">
+                <Icon Name="edit" Size="15" /> 编辑任务
+            </button>
+        </Footer>
+    </Modal>
+}
+
+@code {
+    private void Close() => Ui.CloseTaskDetail();
+
+    private void Edit()
+    {
+        if (Ui.ViewingTodo is not { } todo)
+        {
+            return;
+        }
+
+        Ui.CloseTaskDetail();
+        Ui.OpenTask(todo);
+    }
+
+    private void Complete()
+    {
+        if (Ui.ViewingTodo is not { } todo)
+        {
+            return;
+        }
+
+        Ui.CloseTaskDetail();
+        Ui.OpenComplete(todo);
+    }
+
+    private static bool IsTerminal(TodoStatus status) =>
+        status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed or TodoStatus.Canceled;
+
+    private static string StatusLabel(TodoStatus status) => status switch
+    {
+        TodoStatus.Doing => "进行中",
+        TodoStatus.Done => "已完成",
+        TodoStatus.Verified => "已验证",
+        TodoStatus.Closed => "已关闭",
+        TodoStatus.Canceled => "已取消",
+        _ => "新建",
+    };
+
+    private static string StatusClass(TodoStatus status) => status switch
+    {
+        TodoStatus.Doing => "status-doing",
+        TodoStatus.Done => "status-done",
+        TodoStatus.Verified => "status-verified",
+        TodoStatus.Closed => "status-closed",
+        TodoStatus.Canceled => "status-canceled",
+        _ => "status-open",
+    };
+
+    private static string KindIcon(WorkItemKind kind) => kind switch
+    {
+        WorkItemKind.Bug => "bug",
+        WorkItemKind.Research => "research",
+        WorkItemKind.Chore => "chore",
+        _ => "check",
+    };
+
+    private static string FormatTime(DateTimeOffset? value) =>
+        value is null ? "—" : value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+}

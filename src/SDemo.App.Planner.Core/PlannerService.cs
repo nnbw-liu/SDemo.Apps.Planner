@@ -12,7 +12,7 @@ namespace SDemo.App.Planner.Core;
 /// 3. 草稿只落草稿区，采纳才写 todo（PL-09）；
 /// 4. 时间一律 UTC 进、UTC 出，显示层再转本地。
 /// </summary>
-public sealed class PlannerService
+public sealed partial class PlannerService
 {
     private readonly PlannerStore _store;
     private readonly TimeProvider _time;
@@ -87,10 +87,21 @@ public sealed class PlannerService
         {
             Status = status,
             ListId = query.ListId,
+            ProjectId = query.ProjectId,
+            IterationId = query.IterationId,
+            Kind = query.Kind is { } kind ? PlannerMapper.ToStorage(kind) : null,
+            NoProject = query.NoProject,
             DueBeforeUtc = PlannerMapper.ToUtc(query.DueBefore),
             DueAfterUtc = PlannerMapper.ToUtc(query.DueAfter),
             TagId = tagId,
             Keyword = query.Q?.Trim(),
+            Sort = query.Sort switch
+            {
+                TodoSort.Priority => "priority",
+                TodoSort.Updated => "updated",
+                TodoSort.Created => "created",
+                _ => "due",
+            },
             Limit = Math.Clamp(query.Limit, 1, PlannerConstants.MaxListLimit),
             IncludeDeleted = query.IncludeDeleted,
         });
@@ -179,6 +190,7 @@ public sealed class PlannerService
                 warnings.Add($"「{title}」与「{suspect.Title}」疑似重复");
             }
 
+            var placement = ResolvePlacement(input.ProjectId, input.IterationId);
             var row = new TodoRow
             {
                 Id = NewId("td"),
@@ -188,6 +200,11 @@ public sealed class PlannerService
                 Priority = NormalizePriority(input.Priority),
                 DueAt = PlannerMapper.ToUtc(input.DueAt),
                 ListId = EnsureList(input.ListId),
+                ProjectId = placement.ProjectId,
+                IterationId = placement.IterationId,
+                Kind = PlannerMapper.ToStorage(input.Kind),
+                ParentTodoId = EnsureParentTodo(input.ParentTodoId),
+                Sort = 0,
                 Revision = 1,
                 Source = PlannerMapper.ToStorage(context.Source),
                 SourceSessionId = NormalizeSession(context.SessionId),
@@ -271,10 +288,28 @@ public sealed class PlannerService
     }
 
     /// <summary>勾完成是幂等的：已完成再调一次原样返回，不涨 revision。</summary>
-    public TodoWriteResult CompleteTodo(string id, int expectedRevision, WriteContext context)
+    public TodoWriteResult CompleteTodo(string id, int expectedRevision, WriteContext context) =>
+        SetTodoStatus(id, expectedRevision, TodoStatus.Done, null, null, context);
+
+    /// <summary>
+    /// 设置工作项状态并记录完成说明/产物。终态会写 CompletedAt；重开清空 CompletedAt，但保留历史说明。
+    /// </summary>
+    public TodoWriteResult SetTodoStatus(
+        string id,
+        int expectedRevision,
+        TodoStatus status,
+        string? completionNote,
+        IReadOnlyList<string>? artifacts,
+        WriteContext context)
     {
         var row = _store.GetTodo(id) ?? throw PlannerException.NotFound($"没有找到待办「{id}」");
-        if (row.Status == "done")
+        var newStatus = PlannerMapper.ToStorage(status);
+        var note = NormalizeNotes(completionNote);
+        var artifactList = NormalizeArtifacts(artifacts);
+        var noteChanged = !string.Equals(row.CompletionNote, note, StringComparison.Ordinal);
+        var artifactsChanged = !string.Equals(row.ArtifactsJson, PlannerMapper.SerializeArtifacts(artifactList), StringComparison.Ordinal);
+
+        if (row.Status == newStatus && !noteChanged && !artifactsChanged)
         {
             return new TodoWriteResult(MapTodos([row]).First(), []);
         }
@@ -286,30 +321,75 @@ public sealed class PlannerService
 
         var now = NowUtc();
         var updated = CloneTodo(row);
-        updated.Status = "done";
-        updated.CompletedAt = now;
+        updated.Status = newStatus;
+        updated.CompletionNote = note;
+        updated.ArtifactsJson = PlannerMapper.SerializeArtifacts(artifactList);
+        if (PlannerService.IsTerminalStatus(newStatus))
+        {
+            updated.CompletedAt ??= now;
+        }
+        else
+        {
+            updated.CompletedAt = null;
+        }
+
         updated.UpdatedAt = now;
         updated.Revision = row.Revision + 1;
 
         _store.WriteTodos([new TodoWrite
         {
             Row = updated,
-            Op = "complete",
+            Op = "status",
             ExpectedRevision = expectedRevision,
             Tags = _store.GetTodoTags(id),
             Links = _store.GetLinks("todo", [id]).GetValueOrDefault(id) ?? [],
             Actor = ActorOf(context.Source),
             RequestId = context.RequestId,
+            Reason = $"状态改为 {newStatus}",
         }]);
         RaiseChanged();
 
         return new TodoWriteResult(MapTodos([updated]).First(), []);
     }
 
+    /// <summary>延期：把截止时间整体后移；没设截止时间就从现在起算。</summary>
+    public TodoWriteResult PostponeTodo(string id, int expectedRevision, int days, WriteContext context)
+    {
+        var row = _store.GetTodo(id) ?? throw PlannerException.NotFound($"没有找到待办「{id}」");
+        if (row.Revision != expectedRevision)
+        {
+            throw PlannerException.Conflict(row.Revision);
+        }
+
+        var shift = Math.Clamp(days, 1, 365);
+        var now = NowUtc();
+        var baseAt = row.DueAt is { } due && due > now
+            ? new DateTimeOffset(DateTime.SpecifyKind(due, DateTimeKind.Utc))
+            : _time.GetUtcNow();
+        var updated = CloneTodo(row);
+        updated.DueAt = baseAt.AddDays(shift).UtcDateTime;
+        updated.UpdatedAt = now;
+        updated.Revision = row.Revision + 1;
+
+        _store.WriteTodos([new TodoWrite
+        {
+            Row = updated,
+            Op = "postpone",
+            ExpectedRevision = expectedRevision,
+            Tags = _store.GetTodoTags(id),
+            Links = _store.GetLinks("todo", [id]).GetValueOrDefault(id) ?? [],
+            Actor = ActorOf(context.Source),
+            RequestId = context.RequestId,
+            Reason = $"延期 {shift} 天",
+        }]);
+        RaiseChanged();
+        return new TodoWriteResult(MapTodos([updated]).First(), []);
+    }
+
     public TodoWriteResult ReopenTodo(string id, int expectedRevision, WriteContext context)
     {
         var row = _store.GetTodo(id) ?? throw PlannerException.NotFound($"没有找到待办「{id}」");
-        if (row.Status != "done")
+        if (!PlannerService.IsTerminalStatus(row.Status))
         {
             return new TodoWriteResult(MapTodos([row]).First(), []);
         }
@@ -1074,8 +1154,10 @@ public sealed class PlannerService
         var value = (status ?? "open").Trim().ToLowerInvariant();
         return value switch
         {
-            "open" or "doing" or "done" or "all" or "deleted" => value,
-            _ => throw PlannerException.Validation("status 只能是 open / doing / done / all"),
+            "open" or "active" or "new" or "doing" or "done" or "verified" or "closed"
+                or "canceled" or "all" or "deleted" => value,
+            _ => throw PlannerException.Validation(
+                "status 只能是 open / active / new / doing / done / verified / closed / canceled / all / deleted"),
         };
     }
 
@@ -1109,6 +1191,38 @@ public sealed class PlannerService
         }
 
         return trimmed;
+    }
+
+    private static IReadOnlyList<string> NormalizeArtifacts(IReadOnlyList<string>? artifacts)
+    {
+        if (artifacts is null || artifacts.Count == 0)
+        {
+            return [];
+        }
+
+        if (artifacts.Count > 50)
+        {
+            throw PlannerException.Limit("每个条目最多 50 个产物");
+        }
+
+        var result = new List<string>();
+        foreach (var artifact in artifacts)
+        {
+            var trimmed = (artifact ?? string.Empty).Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (trimmed.Length > 500)
+            {
+                throw PlannerException.Validation("单个产物不能超过 500 字符");
+            }
+
+            result.Add(trimmed);
+        }
+
+        return result.Distinct(StringComparer.Ordinal).ToList();
     }
 
     private static string? NormalizeSession(string? sessionId)
@@ -1327,8 +1441,9 @@ public sealed class PlannerService
 
         if (patch.Status is { } status)
         {
-            target.Status = PlannerMapper.ToStorage(status);
-            target.CompletedAt = status == TodoStatus.Done
+            var storageStatus = PlannerMapper.ToStorage(status);
+            target.Status = storageStatus;
+            target.CompletedAt = PlannerService.IsTerminalStatus(storageStatus)
                 ? target.CompletedAt ?? now
                 : null;
         }
@@ -1350,6 +1465,52 @@ public sealed class PlannerService
         if (patch.ListId is not null)
         {
             target.ListId = EnsureList(patch.ListId);
+        }
+
+        if (patch.ClearProject)
+        {
+            target.ProjectId = null;
+            target.IterationId = null;
+        }
+        else if (patch.ProjectId is not null)
+        {
+            var project = _store.GetProject(patch.ProjectId)
+                ?? throw PlannerException.Validation($"没有找到项目「{patch.ProjectId}」");
+            target.ProjectId = project.Id;
+            if (target.IterationId is { Length: > 0 } currentIteration)
+            {
+                var iteration = _store.GetIteration(currentIteration);
+                if (iteration is null || iteration.ProjectId != project.Id)
+                {
+                    target.IterationId = null;
+                }
+            }
+        }
+
+        if (patch.ClearIteration)
+        {
+            target.IterationId = null;
+        }
+        else if (patch.IterationId is not null)
+        {
+            var iteration = _store.GetIteration(patch.IterationId)
+                ?? throw PlannerException.Validation($"没有找到迭代「{patch.IterationId}」");
+            target.IterationId = iteration.Id;
+            target.ProjectId = iteration.ProjectId;
+        }
+
+        if (patch.Kind is { } itemKind)
+        {
+            target.Kind = PlannerMapper.ToStorage(itemKind);
+        }
+
+        if (patch.ClearParent)
+        {
+            target.ParentTodoId = null;
+        }
+        else if (patch.ParentTodoId is not null)
+        {
+            target.ParentTodoId = EnsureParentTodo(patch.ParentTodoId);
         }
     }
 
@@ -1379,12 +1540,24 @@ public sealed class PlannerService
         var tags = _store.GetTags(ids);
         var links = _store.GetLinks("todo", ids);
         var lists = _store.GetLists().ToDictionary(l => l.Id, l => l.Name, StringComparer.Ordinal);
+        var projects = _store.QueryProjects(includeDeleted: true)
+            .ToDictionary(p => p.Id, p => p, StringComparer.Ordinal);
+        var iterations = _store.QueryIterations(includeDeleted: true)
+            .ToDictionary(i => i.Id, i => i, StringComparer.Ordinal);
 
-        return valid.Select(row => PlannerMapper.ToTodo(
-            row,
-            tags.GetValueOrDefault(row.Id) ?? [],
-            links.GetValueOrDefault(row.Id) ?? [],
-            row.ListId is null ? null : lists.GetValueOrDefault(row.ListId))).ToList();
+        return valid.Select(row =>
+        {
+            var project = row.ProjectId is null ? null : projects.GetValueOrDefault(row.ProjectId);
+            var iteration = row.IterationId is null ? null : iterations.GetValueOrDefault(row.IterationId);
+            return PlannerMapper.ToTodo(
+                row,
+                tags.GetValueOrDefault(row.Id) ?? [],
+                links.GetValueOrDefault(row.Id) ?? [],
+                row.ListId is null ? null : lists.GetValueOrDefault(row.ListId),
+                project?.Name,
+                project?.Color,
+                iteration?.Name);
+        }).ToList();
     }
 
     private IReadOnlyList<EventDto> MapEvents(IReadOnlyList<EventRow> rows)
@@ -1410,7 +1583,14 @@ public sealed class PlannerService
         Priority = row.Priority,
         DueAt = row.DueAt,
         CompletedAt = row.CompletedAt,
+        CompletionNote = row.CompletionNote,
+        ArtifactsJson = row.ArtifactsJson,
         ListId = row.ListId,
+        ProjectId = row.ProjectId,
+        IterationId = row.IterationId,
+        Kind = row.Kind,
+        ParentTodoId = row.ParentTodoId,
+        Sort = row.Sort,
         Revision = row.Revision,
         Source = row.Source,
         SourceSessionId = row.SourceSessionId,

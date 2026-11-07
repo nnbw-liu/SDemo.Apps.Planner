@@ -1,0 +1,179 @@
+@* 单条任务：列表/项目详情/首页共用。左侧只读状态，右侧直接改状态、编辑、延期。 *@
+@inject PlannerService Service
+@inject PlannerUi Ui
+
+<article class="task-row @(IsDone ? "is-done" : "")" @onclick="OpenDetail" title="查看详情">
+    <span class="task-state @StatusClass" title="状态：@StatusLabel">
+        <span class="task-state-dot"></span>
+        <span class="task-state-text">@StatusLabel</span>
+    </span>
+
+    <div class="task-main">
+        <div class="task-title-line">
+            @if (Todo.Kind != WorkItemKind.Task)
+            {
+                <span class="kind @KindClass(Todo.Kind)">@KindLabel(Todo.Kind)</span>
+            }
+            <span class="task-title">@Todo.Title</span>
+            @if (Todo.Priority == 1 && !IsTerminal)
+            {
+                <span class="priority-high" title="高优先级"><Icon Name="flame" Size="13" /></span>
+            }
+        </div>
+        <div class="task-meta">
+            @if (ShowProject && Todo.ProjectName is not null)
+            {
+                <span class="meta-item">
+                    <span class="project-dot" style="--dot:@(Todo.ProjectColor ?? "#4C8DFF")"></span>
+                    @Todo.ProjectName
+                </span>
+            }
+            @if (ShowIteration && Todo.IterationName is not null)
+            {
+                <span class="meta-item">@Todo.IterationName</span>
+            }
+            @if (Todo.DueAt is not null)
+            {
+                <span class="meta-item @(IsOverdue ? "overdue" : "")">
+                    <Icon Name="clock" Size="13" /> @FormatDue(Todo.DueAt)
+                </span>
+            }
+            @if (Todo.Tags.Count > 0)
+            {
+                <span class="meta-item">#@string.Join(" #", Todo.Tags.Take(2))</span>
+            }
+        </div>
+    </div>
+
+    <div class="task-tail" @onclick:stopPropagation="true">
+        <SelectBox TValue="TodoStatus"
+                   Compact="true"
+                   Class="task-state-select"
+                   Value="Todo.Status"
+                   ValueChanged="ChangeStatus"
+                   Options="StatusOptions" />
+        <button class="icon-btn task-action" title="编辑任务" @onclick="() => Ui.OpenTask(Todo)">
+            <Icon Name="edit" Size="15" />
+        </button>
+        <button class="icon-btn task-action" title="延期" @onclick="() => Ui.OpenPostpone(Todo)">
+            <Icon Name="clock" Size="15" />
+        </button>
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public TodoDto Todo { get; set; } = default!;
+
+    [Parameter]
+    public bool ShowProject { get; set; } = true;
+
+    [Parameter]
+    public bool ShowIteration { get; set; } = true;
+
+    private static readonly IReadOnlyList<SelectOption<TodoStatus>> StatusOptions =
+    [
+        new(TodoStatus.Open, "新建"),
+        new(TodoStatus.Doing, "进行中"),
+        new(TodoStatus.Done, "已完成"),
+        new(TodoStatus.Verified, "已验证"),
+        new(TodoStatus.Closed, "已关闭"),
+        new(TodoStatus.Canceled, "已取消"),
+    ];
+
+    private bool IsTerminal => Todo.Status is TodoStatus.Done or TodoStatus.Verified
+        or TodoStatus.Closed or TodoStatus.Canceled;
+
+    private bool IsDone => Todo.Status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed;
+
+    private string StatusLabel => StatusLabelOf(Todo.Status);
+
+    private string StatusClass => Todo.Status switch
+    {
+        TodoStatus.Doing => "state-doing",
+        TodoStatus.Done => "state-done",
+        TodoStatus.Verified => "state-verified",
+        TodoStatus.Closed => "state-closed",
+        TodoStatus.Canceled => "state-canceled",
+        _ => "state-open",
+    };
+
+    private void OpenDetail() => Ui.OpenTaskDetail(Todo);
+
+    private async Task ChangeStatus(TodoStatus status)
+    {
+        if (status == Todo.Status)
+        {
+            return;
+        }
+
+        try
+        {
+            Service.SetTodoStatus(
+                Todo.Id,
+                Todo.Revision,
+                status,
+                Todo.CompletionNote,
+                Todo.Artifacts,
+                WriteContext.Manual());
+            Ui.Toast($"「{Todo.Title}」已标记为{StatusLabelOf(status)}");
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast(ex.Message);
+        }
+    }
+
+    private bool IsOverdue =>
+        !IsTerminal
+        && Todo.DueAt is { } due
+        && due.ToLocalTime() < DateTimeOffset.Now;
+
+    private static string StatusLabelOf(TodoStatus status) => status switch
+    {
+        TodoStatus.Doing => "进行中",
+        TodoStatus.Done => "已完成",
+        TodoStatus.Verified => "已验证",
+        TodoStatus.Closed => "已关闭",
+        TodoStatus.Canceled => "已取消",
+        _ => "新建",
+    };
+
+    private static string FormatDue(DateTimeOffset? due)
+    {
+        if (due is null)
+        {
+            return string.Empty;
+        }
+
+        var local = due.Value.ToLocalTime();
+        var today = DateTime.Today;
+        if (local.Date == today)
+        {
+            return local.ToString("HH:mm");
+        }
+
+        if (local.Date == today.AddDays(1))
+        {
+            return "明天 " + local.ToString("HH:mm");
+        }
+
+        return local.Year == today.Year ? local.ToString("M月d日") : local.ToString("yyyy年M月d日");
+    }
+
+    private static string KindLabel(WorkItemKind kind) => kind switch
+    {
+        WorkItemKind.Bug => "Bug",
+        WorkItemKind.Research => "调研",
+        WorkItemKind.Chore => "杂务",
+        _ => "任务",
+    };
+
+    private static string KindClass(WorkItemKind kind) => kind switch
+    {
+        WorkItemKind.Bug => "kind-bug",
+        WorkItemKind.Research => "kind-research",
+        WorkItemKind.Chore => "kind-chore",
+        _ => "kind-task",
+    };
+}

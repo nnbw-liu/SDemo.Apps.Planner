@@ -33,6 +33,16 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
 
     public DbSet<IdempotencyRow> Idempotency => Set<IdempotencyRow>();
 
+    public DbSet<ProjectRow> Projects => Set<ProjectRow>();
+
+    public DbSet<IterationRow> Iterations => Set<IterationRow>();
+
+    public DbSet<RoutineRow> Routines => Set<RoutineRow>();
+
+    public DbSet<RoutineCheckRow> RoutineChecks => Set<RoutineCheckRow>();
+
+    public DbSet<HolidayRow> Holidays => Set<HolidayRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TodoRow>(entity =>
@@ -46,7 +56,14 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.Property(x => x.Priority).HasColumnName("priority");
             entity.Property(x => x.DueAt).HasColumnName("due_at").HasConversion(UtcConverter);
             entity.Property(x => x.CompletedAt).HasColumnName("completed_at").HasConversion(UtcConverter);
+            entity.Property(x => x.CompletionNote).HasColumnName("completion_note").HasMaxLength(4000);
+            entity.Property(x => x.ArtifactsJson).HasColumnName("artifacts_json");
             entity.Property(x => x.ListId).HasColumnName("list_id").HasMaxLength(64);
+            entity.Property(x => x.ProjectId).HasColumnName("project_id").HasMaxLength(64);
+            entity.Property(x => x.IterationId).HasColumnName("iteration_id").HasMaxLength(64);
+            entity.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(16).IsRequired();
+            entity.Property(x => x.ParentTodoId).HasColumnName("parent_todo_id").HasMaxLength(64);
+            entity.Property(x => x.Sort).HasColumnName("sort");
             entity.Property(x => x.Revision).HasColumnName("revision");
             entity.Property(x => x.Source).HasColumnName("source").HasMaxLength(16).IsRequired();
             entity.Property(x => x.SourceSessionId).HasColumnName("source_session_id").HasMaxLength(128);
@@ -59,7 +76,102 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.HasIndex(x => x.DueAt);
             entity.HasIndex(x => x.Status);
             entity.HasIndex(x => x.ListId);
+            entity.HasIndex(x => x.ProjectId);
+            entity.HasIndex(x => x.IterationId);
             entity.HasIndex(x => x.DeletedAt);
+        });
+
+        modelBuilder.Entity<ProjectRow>(entity =>
+        {
+            entity.ToTable("project");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id").HasMaxLength(64);
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasColumnName("description").HasMaxLength(4000);
+            entity.Property(x => x.Color).HasColumnName("color").HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(16).IsRequired();
+            entity.Property(x => x.StartAt).HasColumnName("start_at").HasConversion(UtcConverter);
+            entity.Property(x => x.TargetAt).HasColumnName("target_at").HasConversion(UtcConverter);
+            entity.Property(x => x.Sort).HasColumnName("sort");
+            entity.Property(x => x.Revision).HasColumnName("revision");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.DeletedAt);
+        });
+
+        modelBuilder.Entity<IterationRow>(entity =>
+        {
+            entity.ToTable("iteration");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id").HasMaxLength(64);
+            entity.Property(x => x.ProjectId).HasColumnName("project_id").HasMaxLength(64).IsRequired();
+            entity.Property(x => x.ParentId).HasColumnName("parent_id").HasMaxLength(64);
+            entity.Property(x => x.Level).HasColumnName("level").HasMaxLength(8).IsRequired();
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Goal).HasColumnName("goal").HasMaxLength(4000);
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(16).IsRequired();
+            entity.Property(x => x.StartAt).HasColumnName("start_at").HasConversion(UtcConverter);
+            entity.Property(x => x.EndAt).HasColumnName("end_at").HasConversion(UtcConverter);
+            entity.Property(x => x.CompletedAt).HasColumnName("completed_at").HasConversion(UtcConverter);
+            entity.Property(x => x.CompletionNote).HasColumnName("completion_note").HasMaxLength(4000);
+            entity.Property(x => x.Sort).HasColumnName("sort");
+            entity.Property(x => x.Revision).HasColumnName("revision");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => x.ProjectId);
+            entity.HasIndex(x => new { x.ProjectId, x.ParentId });
+            entity.HasIndex(x => x.DeletedAt);
+        });
+
+        modelBuilder.Entity<RoutineRow>(entity =>
+        {
+            entity.ToTable("routine");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id").HasMaxLength(64);
+            entity.Property(x => x.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Emoji).HasColumnName("emoji").HasMaxLength(16).IsRequired();
+            entity.Property(x => x.Notes).HasColumnName("notes").HasMaxLength(4000);
+            entity.Property(x => x.DaysMask).HasColumnName("days_mask");
+            entity.Property(x => x.TimeOfDay).HasColumnName("time_of_day").HasMaxLength(5);
+            entity.Property(x => x.IntervalMinutes).HasColumnName("interval_minutes");
+            entity.Property(x => x.ActiveEnd).HasColumnName("active_end").HasMaxLength(5);
+            entity.Property(x => x.TargetCount).HasColumnName("target_count");
+            entity.Property(x => x.Remind).HasColumnName("remind");
+            entity.Property(x => x.Enabled).HasColumnName("enabled");
+            entity.Property(x => x.Sort).HasColumnName("sort");
+            entity.Property(x => x.Revision).HasColumnName("revision");
+            entity.Property(x => x.LastFiredAt).HasColumnName("last_fired_at").HasConversion(UtcConverter);
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => x.Enabled);
+            entity.HasIndex(x => x.DeletedAt);
+        });
+
+        modelBuilder.Entity<RoutineCheckRow>(entity =>
+        {
+            entity.ToTable("routine_check");
+            entity.HasKey(x => new { x.RoutineId, x.LocalDate });
+            entity.Property(x => x.RoutineId).HasColumnName("routine_id").HasMaxLength(64);
+            entity.Property(x => x.LocalDate).HasColumnName("local_date").HasMaxLength(10);
+            entity.Property(x => x.Count).HasColumnName("count");
+            entity.Property(x => x.LastCompletedAt).HasColumnName("last_completed_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => x.LocalDate);
+        });
+
+        modelBuilder.Entity<HolidayRow>(entity =>
+        {
+            entity.ToTable("holiday");
+            entity.HasKey(x => x.Date);
+            entity.Property(x => x.Date).HasColumnName("date").HasMaxLength(10);
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(x => x.IsWorkday).HasColumnName("is_workday");
+            entity.Property(x => x.Source).HasColumnName("source").HasMaxLength(16).IsRequired();
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => x.Date);
         });
 
         modelBuilder.Entity<EventRow>(entity =>

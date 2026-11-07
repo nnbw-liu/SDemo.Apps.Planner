@@ -1,0 +1,44 @@
+@* 任务列表「项目 + 迭代」分组的递归渲染；折叠状态由页面统一持有。 *@
+<section class="task-subgroup @(IsChild ? "is-child" : "")">
+    <header class="task-subgroup-head" @onclick="() => OnToggle.InvokeAsync(Iteration.Key)">
+        <Icon Name="chevron-down" Size="13"
+              Class="@(Collapsed.Contains(Iteration.Key) ? "group-toggle collapsed" : "group-toggle")" />
+        <span class="task-subgroup-label">@Iteration.Label</span>
+        <span class="group-count">@Iteration.TotalCount</span>
+    </header>
+
+    @if (!Collapsed.Contains(Iteration.Key))
+    {
+        @if (Iteration.Items.Count > 0)
+        {
+            <div class="task-list">
+                @foreach (var todo in Iteration.Items)
+                {
+                    <TaskRow Todo="todo" ShowProject="false" ShowIteration="false" />
+                }
+            </div>
+        }
+
+        @foreach (var child in Iteration.Children)
+        {
+            <IterationGroupView Iteration="child"
+                                Collapsed="Collapsed"
+                                OnToggle="OnToggle"
+                                IsChild="true" />
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public TaskIterationGroup Iteration { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public IReadOnlySet<string> Collapsed { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<string> OnToggle { get; set; }
+
+    [Parameter]
+    public bool IsChild { get; set; }
+}

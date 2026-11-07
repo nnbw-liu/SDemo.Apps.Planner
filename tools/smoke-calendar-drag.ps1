@@ -70,7 +70,7 @@ try {
     Add-Type -AssemblyName UIAutomationTypes
     $root = [System.Windows.Automation.AutomationElement]::RootElement
     $windowCondition = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::NameProperty, '待办与日历 · sdemo.planner')
+        [System.Windows.Automation.AutomationElement]::NameProperty, '事序 · 项目与日常')
     $window = $null
     for ($i = 0; $i -lt 50; $i++) {
         $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $windowCondition)

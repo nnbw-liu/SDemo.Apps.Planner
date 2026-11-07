@@ -1,0 +1,93 @@
+@page "/trash"
+@inherits PlannerPageBase
+
+<PageTitle>回收站 · 事序</PageTitle>
+
+<div class="page-toolbar">
+    <div class="segmented">
+        <button class="@(_tab == "todo" ? "active" : "")" @onclick='() => _tab = "todo"'>任务 @_todos.Count</button>
+        <button class="@(_tab == "event" ? "active" : "")" @onclick='() => _tab = "event"'>日程 @_events.Count</button>
+    </div>
+</div>
+
+@if (_tab == "todo")
+{
+    @if (_todos.Count == 0)
+    {
+        <div class="empty-panel"><div class="empty-emoji">🗑️</div><h4>没有删除的任务</h4><p>这里很干净。</p></div>
+    }
+    else
+    {
+        <div class="card trash-list">
+            @foreach (var todo in _todos)
+            {
+                <div class="trash-row" @key="todo.Id">
+                    <div class="trash-main">
+                        <strong>@todo.Title</strong>
+                        <div class="trash-meta">
+                            @if (todo.ProjectName is not null)
+                            {
+                                <span>@todo.ProjectName</span>
+                            }
+                            <span>删除于 @todo.DeletedAt?.ToLocalTime().ToString("M月d日 HH:mm")</span>
+                            @if (todo.RestorableUntil is not null)
+                            {
+                                <span>可恢复到 @todo.RestorableUntil.Value.ToLocalTime().ToString("M月d日 HH:mm")</span>
+                            }
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" @onclick="() => RestoreTodo(todo)">恢复</button>
+                </div>
+            }
+        </div>
+    }
+}
+else
+{
+    @if (_events.Count == 0)
+    {
+        <div class="empty-panel"><div class="empty-emoji">🗑️</div><h4>没有删除的日程</h4><p>这里很干净。</p></div>
+    }
+    else
+    {
+        <div class="card trash-list">
+            @foreach (var evt in _events)
+            {
+                <div class="trash-row" @key="evt.Id">
+                    <div class="trash-main">
+                        <strong>@evt.Title</strong>
+                        <div class="trash-meta">
+                            <span>@evt.StartAt.ToLocalTime().ToString("M月d日 HH:mm") – @evt.EndAt.ToLocalTime().ToString("HH:mm")</span>
+                            <span>删除于 @evt.DeletedAt?.ToLocalTime().ToString("M月d日 HH:mm")</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" @onclick="() => RestoreEvent(evt)">恢复</button>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private string _tab = "todo";
+    private IReadOnlyList<TodoDto> _todos = [];
+    private IReadOnlyList<EventDto> _events = [];
+
+    protected override void Reload()
+    {
+        _todos = Service.ListDeletedTodos();
+        _events = Service.ListDeletedEvents();
+    }
+
+    private void RestoreTodo(TodoDto todo)
+    {
+        Service.RestoreTodo(todo.Id, WriteContext.Manual());
+        Ui.Toast("任务已恢复");
+    }
+
+    private void RestoreEvent(EventDto evt)
+    {
+        Service.RestoreEvent(evt.Id, WriteContext.Manual());
+        Ui.Toast("日程已恢复");
+    }
+}

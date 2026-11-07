@@ -201,6 +201,40 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.ToTable("event", (string)null);
                 });
 
+            modelBuilder.Entity("SDemo.App.Planner.Storage.HolidayRow", b =>
+                {
+                    b.Property<string>("Date")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("date");
+
+                    b.Property<bool>("IsWorkday")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("is_workday");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("source");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Date");
+
+                    b.HasIndex("Date");
+
+                    b.ToTable("holiday", (string)null);
+                });
+
             modelBuilder.Entity("SDemo.App.Planner.Storage.IdempotencyRow", b =>
                 {
                     b.Property<string>("ClientRequestId")
@@ -222,6 +256,95 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.HasIndex("CreatedAt");
 
                     b.ToTable("idempotency", (string)null);
+                });
+
+            modelBuilder.Entity("SDemo.App.Planner.Storage.IterationRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("CompletionNote")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("completion_note");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateTime?>("EndAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("end_at");
+
+                    b.Property<string>("Goal")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("goal");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("level");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ParentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("parent_id");
+
+                    b.Property<string>("ProjectId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("project_id");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("sort");
+
+                    b.Property<DateTime?>("StartAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("start_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ProjectId", "ParentId");
+
+                    b.ToTable("iteration", (string)null);
                 });
 
             modelBuilder.Entity("SDemo.App.Planner.Storage.LinkRow", b =>
@@ -457,6 +580,187 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.ToTable("outbox", (string)null);
                 });
 
+            modelBuilder.Entity("SDemo.App.Planner.Storage.ProjectRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("color");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("sort");
+
+                    b.Property<DateTime?>("StartAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("start_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("TargetAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("target_at");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("project", (string)null);
+                });
+
+            modelBuilder.Entity("SDemo.App.Planner.Storage.RoutineCheckRow", b =>
+                {
+                    b.Property<string>("RoutineId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("routine_id");
+
+                    b.Property<string>("LocalDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("local_date");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("count");
+
+                    b.Property<DateTime?>("LastCompletedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("last_completed_at");
+
+                    b.HasKey("RoutineId", "LocalDate");
+
+                    b.HasIndex("LocalDate");
+
+                    b.ToTable("routine_check", (string)null);
+                });
+
+            modelBuilder.Entity("SDemo.App.Planner.Storage.RoutineRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ActiveEnd")
+                        .HasMaxLength(5)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("active_end");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DaysMask")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("days_mask");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Emoji")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("emoji");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("enabled");
+
+                    b.Property<int?>("IntervalMinutes")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("interval_minutes");
+
+                    b.Property<DateTime?>("LastFiredAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("last_fired_at");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("notes");
+
+                    b.Property<bool>("Remind")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("remind");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("sort");
+
+                    b.Property<int>("TargetCount")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("target_count");
+
+                    b.Property<string>("TimeOfDay")
+                        .HasMaxLength(5)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("time_of_day");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Enabled");
+
+                    b.ToTable("routine", (string)null);
+                });
+
             modelBuilder.Entity("SDemo.App.Planner.Storage.TagRow", b =>
                 {
                     b.Property<string>("Id")
@@ -489,9 +793,18 @@ namespace SDemo.App.Planner.Storage.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("id");
 
+                    b.Property<string>("ArtifactsJson")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("artifacts_json");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("TEXT")
                         .HasColumnName("completed_at");
+
+                    b.Property<string>("CompletionNote")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("completion_note");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT")
@@ -509,6 +822,17 @@ namespace SDemo.App.Planner.Storage.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("fts_row_id");
 
+                    b.Property<string>("IterationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("iteration_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("kind");
+
                     b.Property<string>("ListId")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT")
@@ -519,9 +843,19 @@ namespace SDemo.App.Planner.Storage.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("notes");
 
+                    b.Property<string>("ParentTodoId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("parent_todo_id");
+
                     b.Property<int>("Priority")
                         .HasColumnType("INTEGER")
                         .HasColumnName("priority");
+
+                    b.Property<string>("ProjectId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("project_id");
 
                     b.Property<DateTime?>("RestorableUntil")
                         .HasColumnType("TEXT")
@@ -530,6 +864,10 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.Property<int>("Revision")
                         .HasColumnType("INTEGER")
                         .HasColumnName("revision");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("sort");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -569,7 +907,11 @@ namespace SDemo.App.Planner.Storage.Migrations
 
                     b.HasIndex("DueAt");
 
+                    b.HasIndex("IterationId");
+
                     b.HasIndex("ListId");
+
+                    b.HasIndex("ProjectId");
 
                     b.HasIndex("Status");
 

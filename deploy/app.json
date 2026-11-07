@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "sdemo.planner",
-  "name": "待办与日历",
-  "version": "0.1.0",
+  "name": "事序",
+  "version": "0.4.0",
   "executable": "payload\\SDemo.Planner.exe",
   "arguments": [],
   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",

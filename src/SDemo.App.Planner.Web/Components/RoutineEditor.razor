@@ -1,0 +1,234 @@
+@inherits PlannerPageBase
+
+<Modal Title="@(Ui.EditingRoutine is null ? "新建日常" : "编辑日常")"
+       Eyebrow="每日提醒"
+       SizeClass="modal-md" OnClose="Close">
+    <ChildContent>
+    <div class="form-grid">
+        <div class="field field-full">
+            <span>图标</span>
+            <div class="emoji-row">
+                @foreach (var emoji in Emojis)
+                {
+                    <button type="button" class="emoji @(_emoji == emoji ? "selected" : "")"
+                            @onclick="() => _emoji = emoji">@emoji</button>
+                }
+            </div>
+        </div>
+
+        <label class="field field-full">
+            <span>要做什么</span>
+            <input class="input input-lg" placeholder="例如：喝水 / 吃药 / 起来走动" @bind="_title" @bind:event="oninput" autofocus />
+        </label>
+
+        <div class="field field-full">
+            <span>重复日</span>
+            <div class="day-row">
+                @foreach (var (day, label) in DayOptions)
+                {
+                    <button type="button" class="day-pill @(RoutineDays.Includes(_daysMask, day) ? "active" : "")"
+                            @onclick="() => ToggleDay(day)">@label</button>
+                }
+                <button type="button" class="day-shortcut" @onclick="() => _daysMask = 127">每天</button>
+                <button type="button" class="day-shortcut" @onclick="() => _daysMask = 0b0011111">工作日</button>
+            </div>
+        </div>
+
+        <div class="field field-full">
+            <span>提醒方式</span>
+            <div class="segmented">
+                <button type="button" class="segment @(!_interval ? "active" : "")" @onclick="() => _interval = false">
+                    每天固定时间
+                </button>
+                <button type="button" class="segment @(_interval ? "active" : "")" @onclick="() => _interval = true">
+                    每隔一段时间
+                </button>
+            </div>
+        </div>
+
+        <label class="field">
+            <span>@(_interval ? "开始时间" : "提醒时间")</span>
+            <input class="input" type="time" value="@_timeOfDay" @onchange="e => _timeOfDay = TimeValue(e)" />
+        </label>
+
+        @if (_interval)
+        {
+            <label class="field">
+                <span>每多少分钟</span>
+                <input class="input" type="number" min="1" max="1440" @bind="_intervalMinutes" />
+            </label>
+            <label class="field">
+                <span>结束时间</span>
+                <input class="input" type="time" value="@_activeEnd" @onchange="e => _activeEnd = TimeValue(e)" />
+            </label>
+        }
+
+        <label class="field">
+            <span>每天目标次数</span>
+            <input class="input" type="number" min="1" max="99" @bind="_targetCount" />
+        </label>
+
+        <label class="field field-full">
+            <span>备注</span>
+            <input class="input" placeholder="可选，例如：每次 200ml" @bind="_notes" />
+        </label>
+
+        <div class="toggle-row field-full">
+            <label class="toggle">
+                <input type="checkbox" @bind="_remind" />
+                <span class="toggle-track"></span>
+                <span>到点提醒我</span>
+            </label>
+            @if (Ui.EditingRoutine is not null)
+            {
+                <label class="toggle">
+                    <input type="checkbox" @bind="_enabled" />
+                    <span class="toggle-track"></span>
+                    <span>启用</span>
+                </label>
+            }
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="form-error field-full">@_error</div>
+        }
+    </div>
+    </ChildContent>
+
+    <Footer>
+        <button class="btn btn-ghost" @onclick="Close">取消</button>
+        <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+            @(_saving ? "保存中…" : "保存日常")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private static readonly string[] Emojis = ["💧", "💊", "🚶", "🧘", "📖", "🏋️", "☀️", "🌙", "✅", "🍎"];
+
+    private static readonly (DayOfWeek Day, string Label)[] DayOptions =
+    [
+        (DayOfWeek.Monday, "一"),
+        (DayOfWeek.Tuesday, "二"),
+        (DayOfWeek.Wednesday, "三"),
+        (DayOfWeek.Thursday, "四"),
+        (DayOfWeek.Friday, "五"),
+        (DayOfWeek.Saturday, "六"),
+        (DayOfWeek.Sunday, "日"),
+    ];
+
+    private string _title = string.Empty;
+    private string _emoji = "💧";
+    private string _notes = string.Empty;
+    private int _daysMask = 127;
+    private string _timeOfDay = "09:00";
+    private bool _interval;
+    private int _intervalMinutes = 60;
+    private string _activeEnd = "18:00";
+    private int _targetCount = 1;
+    private bool _remind = true;
+    private bool _enabled = true;
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Ui.EditingRoutine is { } routine)
+        {
+            _title = routine.Title;
+            _emoji = routine.Emoji;
+            _notes = routine.Notes ?? string.Empty;
+            _daysMask = routine.DaysMask;
+            _timeOfDay = routine.TimeOfDay ?? "09:00";
+            _interval = routine.IntervalMinutes is > 0;
+            _intervalMinutes = routine.IntervalMinutes ?? 60;
+            _activeEnd = routine.ActiveEnd ?? "18:00";
+            _targetCount = routine.TargetCount;
+            _remind = routine.Remind;
+            _enabled = routine.Enabled;
+        }
+    }
+
+    private void ToggleDay(DayOfWeek day) =>
+        _daysMask = RoutineDays.With(_daysMask, day, !RoutineDays.Includes(_daysMask, day));
+
+    private void Close() => Ui.CloseRoutine();
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "先写下要提醒的事情。";
+            return;
+        }
+
+        if (_daysMask == 0)
+        {
+            _error = "至少选择一天。";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var time = string.IsNullOrWhiteSpace(_timeOfDay) ? "09:00" : _timeOfDay;
+            var interval = _interval ? Math.Clamp(_intervalMinutes, 1, 1440) : (int?)null;
+            if (Ui.EditingRoutine is { } routine)
+            {
+                Service.UpdateRoutine(
+                    routine.Id,
+                    routine.Revision,
+                    new RoutinePatch
+                    {
+                        Title = _title.Trim(),
+                        Emoji = _emoji,
+                        Notes = string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
+                        ClearNotes = string.IsNullOrWhiteSpace(_notes),
+                        DaysMask = _daysMask,
+                        TimeOfDay = time,
+                        IntervalMinutes = interval,
+                        ClearInterval = interval is null,
+                        ActiveEnd = interval is null ? null : _activeEnd,
+                        ClearActiveEnd = interval is null,
+                        TargetCount = Math.Clamp(_targetCount, 1, 99),
+                        Remind = _remind,
+                        Enabled = _enabled,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("日常已更新");
+            }
+            else
+            {
+                Service.CreateRoutine(
+                    new RoutineInput
+                    {
+                        Title = _title.Trim(),
+                        Emoji = _emoji,
+                        Notes = string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
+                        DaysMask = _daysMask,
+                        TimeOfDay = time,
+                        IntervalMinutes = interval,
+                        ActiveEnd = interval is null ? null : _activeEnd,
+                        TargetCount = Math.Clamp(_targetCount, 1, 99),
+                        Remind = _remind,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("日常已创建");
+            }
+
+            Ui.CloseRoutine();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}
+

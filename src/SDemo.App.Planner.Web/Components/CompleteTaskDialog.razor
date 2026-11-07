@@ -1,0 +1,145 @@
+@inherits PlannerPageBase
+
+<Modal Title="完成任务" Eyebrow="记录结果，而不是只打一个勾" SizeClass="modal-md" OnClose="Close">
+    <ChildContent>
+        <div class="complete-head">
+            <span class="kind @KindCss">@KindText</span>
+            <div>
+                <strong>@_todo.Title</strong>
+                <span>@(_todo.ProjectName ?? "未归属项目")@(_todo.IterationName is null ? "" : " · " + _todo.IterationName)</span>
+            </div>
+        </div>
+
+        <div class="field field-full">
+            <span>完成状态</span>
+            <div class="complete-status-grid">
+                @foreach (var option in StatusOptions)
+                {
+                    <button type="button"
+                            class="complete-status @(_status == option.Status ? "active" : "") @StatusClass(option.Status)"
+                            @onclick="() => _status = option.Status">
+                        <b>@option.Label</b>
+                        <small>@option.Hint</small>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <label class="field field-full">
+            <span>完成说明</span>
+            <textarea class="input textarea" rows="3"
+                      placeholder="怎么完成的？验收结果、遗留问题、下一步…"
+                      @bind="_note"></textarea>
+        </label>
+
+        <label class="field field-full">
+            <span>产物 / 链接</span>
+            <textarea class="input textarea" rows="3"
+                      placeholder="每行一个：提交、文档、截图、构建产物或链接"
+                      @bind="_artifacts"></textarea>
+            <small class="form-hint">会随任务一起保存，之后在任务详情里还能看到。</small>
+        </label>
+
+        @if (_error is not null)
+        {
+            <div class="form-error field-full">@_error</div>
+        }
+    </ChildContent>
+
+    <Footer>
+        <button class="btn btn-ghost" @onclick="Close">取消</button>
+        <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+            @(_saving ? "保存中…" : _status == TodoStatus.Done ? "记录并完成" : "记录状态")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private static readonly (TodoStatus Status, string Label, string Hint)[] StatusOptions =
+    [
+        (TodoStatus.Done, "已完成", "工作已经做完"),
+        (TodoStatus.Verified, "已验证", "验收通过，有证据"),
+        (TodoStatus.Closed, "已关闭", "不再跟进"),
+        (TodoStatus.Canceled, "已取消", "决定不做"),
+    ];
+
+    private TodoDto _todo = default!;
+    private TodoStatus _status = TodoStatus.Done;
+    private string _note = string.Empty;
+    private string _artifacts = string.Empty;
+    private string? _error;
+    private bool _saving;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _todo = Ui.CompletingTodo ?? throw new InvalidOperationException("完成弹窗缺少任务");
+        _note = _todo.CompletionNote ?? string.Empty;
+        _artifacts = string.Join(Environment.NewLine, _todo.Artifacts);
+    }
+
+    private string KindText => _todo.Kind switch
+    {
+        WorkItemKind.Bug => "Bug",
+        WorkItemKind.Research => "调研",
+        WorkItemKind.Chore => "杂务",
+        _ => "任务",
+    };
+
+    private string KindCss => _todo.Kind switch
+    {
+        WorkItemKind.Bug => "kind-bug",
+        WorkItemKind.Research => "kind-research",
+        WorkItemKind.Chore => "kind-chore",
+        _ => "kind-task",
+    };
+
+    private static string StatusClass(TodoStatus status) => status switch
+    {
+        TodoStatus.Verified => "verified",
+        TodoStatus.Closed => "closed",
+        TodoStatus.Canceled => "canceled",
+        _ => "done",
+    };
+
+    private void Close() => Ui.CloseComplete();
+
+    private async Task Save()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var artifacts = _artifacts
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(x => x.Length > 0)
+                .ToList();
+
+            Service.SetTodoStatus(
+                _todo.Id,
+                _todo.Revision,
+                _status,
+                string.IsNullOrWhiteSpace(_note) ? null : _note.Trim(),
+                artifacts,
+                WriteContext.Manual());
+
+            Ui.Toast(_status switch
+            {
+                TodoStatus.Verified => "已标记为已验证",
+                TodoStatus.Closed => "任务已关闭",
+                TodoStatus.Canceled => "任务已取消",
+                _ => "任务已完成",
+            });
+            Ui.CloseComplete();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}
+

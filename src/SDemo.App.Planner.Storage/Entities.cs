@@ -12,7 +12,7 @@ public sealed class TodoRow
 
     public string? Notes { get; set; }
 
-    /// <summary>open / doing / done。</summary>
+    /// <summary>open / doing / done / verified / closed / canceled。</summary>
     public string Status { get; set; } = "open";
 
     public int Priority { get; set; } = 2;
@@ -21,7 +21,27 @@ public sealed class TodoRow
 
     public DateTime? CompletedAt { get; set; }
 
+    /// <summary>完成/验收说明。</summary>
+    public string? CompletionNote { get; set; }
+
+    /// <summary>产物列表的 JSON 数组文本；空列表存 null。</summary>
+    public string? ArtifactsJson { get; set; }
+
     public string? ListId { get; set; }
+
+    /// <summary>所属项目；为空表示未归属项目（旧数据 / 收件箱）。</summary>
+    public string? ProjectId { get; set; }
+
+    /// <summary>所属迭代（大迭代或小迭代）；为空表示只挂在项目下。</summary>
+    public string? IterationId { get; set; }
+
+    /// <summary>task / bug / research / chore。</summary>
+    public string Kind { get; set; } = "task";
+
+    /// <summary>子任务的父 todo id。</summary>
+    public string? ParentTodoId { get; set; }
+
+    public int Sort { get; set; }
 
     public int Revision { get; set; }
 
@@ -44,9 +64,146 @@ public sealed class TodoRow
     public long? FtsRowId { get; set; }
 }
 
-public sealed class EventRow
+/// <summary>项目：任务的归属根。删除走软删，任务本身不级联删除。</summary>
+public sealed class ProjectRow
 {
     public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public string Color { get; set; } = "#4C8DFF";
+
+    /// <summary>active / paused / done / archived。</summary>
+    public string Status { get; set; } = "active";
+
+    public DateTime? StartAt { get; set; }
+
+    public DateTime? TargetAt { get; set; }
+
+    public int Sort { get; set; }
+
+    public int Revision { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+}
+
+/// <summary>迭代：大迭代 parent 为空，小迭代挂大迭代；同一项目内两层。</summary>
+public sealed class IterationRow
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string ProjectId { get; set; } = string.Empty;
+
+    public string? ParentId { get; set; }
+
+    /// <summary>big / small。</summary>
+    public string Level { get; set; } = "big";
+
+    public string Name { get; set; } = string.Empty;
+
+    public string? Goal { get; set; }
+
+    /// <summary>planned / active / done / archived。</summary>
+    public string Status { get; set; } = "planned";
+
+    public DateTime? StartAt { get; set; }
+
+    public DateTime? EndAt { get; set; }
+
+    public DateTime? CompletedAt { get; set; }
+
+    public string? CompletionNote { get; set; }
+
+    public int Sort { get; set; }
+
+    public int Revision { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+}
+
+/// <summary>日常：每天要做的事，也是提醒来源。时间列存本地 HH:mm，不做时区换算。</summary>
+public sealed class RoutineRow
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Emoji { get; set; } = "✅";
+
+    public string? Notes { get; set; }
+
+    /// <summary>bit0=周一 … bit6=周日。</summary>
+    public int DaysMask { get; set; } = 127;
+
+    /// <summary>本地 HH:mm。固定提醒时刻；间隔提醒时作为允许开始时间。</summary>
+    public string? TimeOfDay { get; set; }
+
+    public int? IntervalMinutes { get; set; }
+
+    /// <summary>本地 HH:mm；间隔提醒的结束时间。</summary>
+    public string? ActiveEnd { get; set; }
+
+    public int TargetCount { get; set; } = 1;
+
+    public bool Remind { get; set; } = true;
+
+    public bool Enabled { get; set; } = true;
+
+    public int Sort { get; set; }
+
+    public int Revision { get; set; }
+
+    /// <summary>上次提醒时间（UTC），用于去重；固定与间隔提醒共用。</summary>
+    public DateTime? LastFiredAt { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+}
+
+/// <summary>日常打卡：按「本地日期」计次，routine_id + local_date 唯一。</summary>
+public sealed class RoutineCheckRow
+{
+    public string RoutineId { get; set; } = string.Empty;
+
+    /// <summary>yyyy-MM-dd（本地日期，不是 UTC 日期）。</summary>
+    public string LocalDate { get; set; } = string.Empty;
+
+    public int Count { get; set; }
+
+    public DateTime? LastCompletedAt { get; set; }
+}
+
+/// <summary>中国法定节假日 / 调休补班；date 为本地日历日 yyyy-MM-dd。</summary>
+public sealed class HolidayRow
+{
+    public string Date { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>true = 调休上班（班）；false = 放假（休）。</summary>
+    public bool IsWorkday { get; set; }
+
+    /// <summary>manual / remote；manual 优先，联网同步不覆盖。</summary>
+    public string Source { get; set; } = "manual";
+
+    public DateTime UpdatedAt { get; set; }
+}
+
+public sealed class EventRow
+{    public string Id { get; set; } = string.Empty;
 
     public string Title { get; set; } = string.Empty;
 

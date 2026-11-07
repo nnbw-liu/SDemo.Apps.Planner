@@ -1,0 +1,403 @@
+@page "/projects/{Id}"
+@inherits PlannerPageBase
+@inject NavigationManager Nav
+
+<PageTitle>@(_project?.Name ?? "项目") · 事序</PageTitle>
+
+@if (_project is null)
+{
+    <div class="empty-panel">
+        <div class="empty-emoji">🧭</div>
+        <h4>没有找到这个项目</h4>
+        <p>它可能已被删除，或者链接不完整。</p>
+        <a class="btn btn-primary" href="/projects">回到项目列表</a>
+    </div>
+}
+else
+{
+    <div class="detail-back">
+        <a class="text-link" href="/projects"><Icon Name="arrow-right" Size="13" class="flip" /> 所有项目</a>
+    </div>
+
+    <section class="project-hero" style="--project:@_project.Color">
+        <div class="project-hero-main">
+            <div class="project-hero-title">
+                <span class="project-color xl" style="--dot:@_project.Color"></span>
+                <div>
+                    <div class="eyebrow">@StatusLabel(_project.Status) · @ProjectWindow(_project)</div>
+                    <h1>@_project.Name</h1>
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_project.Description))
+            {
+                <p class="project-desc">@_project.Description</p>
+            }
+            <div class="hero-actions">
+                <button class="btn btn-primary" @onclick="() => Ui.OpenTask(projectId: _project.Id)">
+                    <Icon Name="plus" Size="15" /> 添加任务
+                </button>
+                <button class="btn btn-ghost" @onclick="() => Ui.OpenIteration(_project.Id)">
+                    <Icon Name="layers" Size="15" /> 新建迭代
+                </button>
+                <button class="btn btn-ghost" @onclick="() => Ui.OpenProject(_project)">编辑项目</button>
+                <button class="btn btn-ghost btn-danger" @onclick="() => _confirmDelete = !_confirmDelete">删除</button>
+            </div>
+            @if (_confirmDelete)
+            {
+                <div class="confirm-bar">
+                    <span>删除项目后，任务会保留但不再归属项目；迭代会一并移除。</span>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteProject">确认删除</button>
+                    <button class="btn btn-ghost btn-sm" @onclick="() => _confirmDelete = false">取消</button>
+                </div>
+            }
+        </div>
+        <div class="project-hero-side">
+            <div class="big-ring" style="--progress:@(_project.Progress * 3.6)deg">
+                <div class="big-ring-inner">
+                    <strong>@_project.Progress.ToString("F0")%</strong>
+                    <small>整体进度</small>
+                </div>
+            </div>
+            <div class="hero-mini-stats">
+                <div><strong>@_project.DoneTasks</strong><span>已完成</span></div>
+                <div><strong>@_project.OpenTasks</strong><span>待完成</span></div>
+                <div class="@(_project.OverdueTasks > 0 ? "danger-text" : "")"><strong>@_project.OverdueTasks</strong><span>逾期</span></div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow">Roadmap</span>
+            <h3>迭代路线</h3>
+        </div>
+        <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenIteration(_project.Id)">
+            <Icon Name="plus" Size="14" /> 大迭代
+        </button>
+    </div>
+
+    @if (BigIterations.Count == 0)
+    {
+        <div class="empty-panel compact">
+            <h4>还没有大迭代</h4>
+            <p>大迭代对应一个版本或里程碑。先定一个方向，再往下拆小迭代。</p>
+            <button class="btn btn-primary" @onclick="() => Ui.OpenIteration(_project.Id)">新建大迭代</button>
+        </div>
+    }
+    else
+    {
+        <div class="iteration-stack">
+            @foreach (var big in BigIterations)
+            {
+                var children = ChildrenOf(big.Id);
+                var directTasks = DirectTasks(big.Id);
+                <section class="iteration-block" @key="big.Id">
+                    <header class="iteration-block-head">
+                        <button class="icon-btn group-toggle @(Collapsed(big.Id) ? "collapsed" : "")"
+                                title="@(Collapsed(big.Id) ? "展开迭代" : "收起迭代")"
+                                aria-expanded="@(!Collapsed(big.Id))"
+                                @onclick="() => ToggleGroup(big.Id)">
+                            <Icon Name="chevron-down" Size="15" />
+                        </button>
+                        <div class="iteration-title">
+                            <span class="level-dot big"></span>
+                            <div>
+                                <div class="iteration-kicker">
+                                    <span>大迭代 · @IterationStatusLabel(big.Status)</span>
+                                    <span>@Window(big)</span>
+                                </div>
+                                <h3>@big.Name</h3>
+                                @if (!string.IsNullOrWhiteSpace(big.Goal))
+                                {
+                                    <p>@big.Goal</p>
+                                }
+                            </div>
+                        </div>
+                        <div class="iteration-block-actions">
+                            <div class="iteration-progress">
+                                <span>@big.Progress.ToString("F0")%</span>
+                                <div class="mini-progress"><span style="width:@big.Progress%"></span></div>
+                            </div>
+                            <button class="icon-btn" title="新建小迭代" @onclick="() => Ui.OpenIteration(_project.Id, parentId: big.Id)"><Icon Name="plus" Size="15" /></button>
+                            <button class="icon-btn" title="编辑迭代" @onclick="() => Ui.OpenIteration(_project.Id, big)"><Icon Name="edit" Size="15" /></button>
+                            @if (big.Status == IterationStatus.Done)
+                            {
+                                <button class="icon-btn" title="重开迭代" @onclick="() => ReopenIteration(big)"><Icon Name="repeat" Size="15" /></button>
+                            }
+                            else
+                            {
+                                <button class="icon-btn" title="完成迭代" @onclick="() => CompleteIteration(big)"><Icon Name="check" Size="15" /></button>
+                            }
+                            <button class="icon-btn" title="删除迭代" @onclick="() => DeleteIteration(big)"><Icon Name="trash" Size="15" /></button>
+                        </div>
+                    </header>
+
+                    @if (!Collapsed(big.Id))
+                    {
+                        @if (children.Count == 0)
+                        {
+                            <div class="inline-empty">还没有小迭代。<button class="text-link" @onclick="() => Ui.OpenIteration(_project.Id, parentId: big.Id)">拆一个小迭代</button></div>
+                        }
+                        else
+                        {
+                            <div class="subiteration-list">
+                                @foreach (var small in children)
+                                {
+                                    var smallTasks = DirectTasks(small.Id);
+                                    <div class="subiteration" @key="small.Id">
+                                        <button class="icon-btn group-toggle @(Collapsed(small.Id) ? "collapsed" : "")"
+                                                title="@(Collapsed(small.Id) ? "展开小迭代" : "收起小迭代")"
+                                                aria-expanded="@(!Collapsed(small.Id))"
+                                                @onclick="() => ToggleGroup(small.Id)">
+                                            <Icon Name="chevron-down" Size="14" />
+                                        </button>
+                                        <span class="level-dot small"></span>
+                                        <div class="subiteration-main">
+                                            <div class="subiteration-title">
+                                                <strong>@small.Name</strong>
+                                                <span class="status-pill status-@small.Status.ToString().ToLowerInvariant()">@IterationStatusLabel(small.Status)</span>
+                                            </div>
+                                            <div class="subiteration-meta">
+                                                <span>@Window(small)</span>
+                                                <span>@small.DoneTasks/@small.TotalTasks 任务</span>
+                                            </div>
+                                            <div class="mini-progress"><span style="width:@small.Progress%"></span></div>
+                                        </div>
+                                        <span class="subiteration-progress">@small.Progress.ToString("F0")%</span>
+                                        <button class="icon-btn" title="编辑" @onclick="() => Ui.OpenIteration(_project.Id, small)"><Icon Name="edit" Size="14" /></button>
+                                        @if (small.Status == IterationStatus.Done)
+                                        {
+                                            <button class="icon-btn" title="重开" @onclick="() => ReopenIteration(small)"><Icon Name="repeat" Size="14" /></button>
+                                        }
+                                        else
+                                        {
+                                            <button class="icon-btn" title="完成" @onclick="() => CompleteIteration(small)"><Icon Name="check" Size="14" /></button>
+                                        }
+                                        <button class="icon-btn" title="删除" @onclick="() => DeleteIteration(small)"><Icon Name="trash" Size="14" /></button>
+                                    </div>
+                                    @if (!Collapsed(small.Id))
+                                    {
+                                        <div class="subiteration-tasks @(smallTasks.Count == 0 ? "is-empty" : "")">
+                                            <div class="iteration-tasks-head">
+                                                <span>@smallTasks.Count 个任务</span>
+                                                <button class="text-link" @onclick="() => Ui.OpenTask(projectId: _project.Id, iterationId: small.Id)">+ 添加</button>
+                                            </div>
+                                            @foreach (var todo in smallTasks)
+                                            {
+                                                <TaskRow Todo="todo" ShowProject="false" ShowIteration="false" />
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+
+                        <div class="iteration-tasks">
+                            <div class="iteration-tasks-head">
+                                <span>大迭代直属任务 · @directTasks.Count</span>
+                                <button class="text-link" @onclick="() => Ui.OpenTask(projectId: _project.Id, iterationId: big.Id)">+ 添加</button>
+                            </div>
+                            @if (directTasks.Count == 0)
+                            {
+                                <div class="inline-empty">没有直接挂在大迭代上的任务。</div>
+                            }
+                            else
+                            {
+                                @foreach (var todo in directTasks)
+                                {
+                                    <TaskRow Todo="todo" ShowProject="false" ShowIteration="false" />
+                                }
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    }
+
+    <section class="section-block">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow">Backlog</span>
+                <h3>未归入迭代</h3>
+            </div>
+            <div class="card-head-actions">
+                <button class="btn btn-ghost btn-sm" @onclick="() => _showDone = !_showDone">@(_showDone ? "隐藏已完成" : "显示已完成")</button>
+                <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenTask(projectId: _project.Id)"><Icon Name="plus" Size="14" /> 添加</button>
+            </div>
+        </div>
+        @if (Backlog.Count == 0)
+        {
+            <div class="inline-empty">没有散落在项目层的任务。</div>
+        }
+        else
+        {
+            <div class="task-list">
+                @foreach (var todo in Backlog)
+                {
+                    <TaskRow Todo="todo" ShowProject="false" />
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private ProjectDto? _project;
+    private IReadOnlyList<TodoDto> _tasks = [];
+    private bool _showDone;
+    private bool _confirmDelete;
+    private readonly HashSet<string> _collapsed = [];
+
+    private IReadOnlyList<IterationDto> BigIterations =>
+        _project?.Iterations.Where(i => i.Level == IterationLevel.Big).OrderBy(i => i.Sort).ToList() ?? [];
+
+    private IReadOnlyList<IterationDto> ChildrenOf(string parentId) =>
+        _project?.Iterations.Where(i => i.ParentId == parentId).OrderBy(i => i.Sort).ToList() ?? [];
+
+    private IReadOnlyList<TodoDto> Backlog
+    {
+        get
+        {
+            if (_project is null)
+            {
+                return [];
+            }
+
+            var iterationIds = _project.Iterations.Select(i => i.Id).ToHashSet();
+            return _tasks
+                .Where(t => t.IterationId is null || !iterationIds.Contains(t.IterationId))
+                .Where(t => _showDone || !IsTerminal(t.Status))
+                .OrderBy(t => IsTerminal(t.Status))
+                .ThenBy(t => t.Priority)
+                .ThenBy(t => t.DueAt is null)
+                .ThenBy(t => t.DueAt)
+                .ThenBy(t => t.CreatedAt)
+                .ToList();
+        }
+    }
+
+    protected override void Reload()
+    {
+        _project = string.IsNullOrEmpty(Id) ? null : Service.GetProject(Id);
+        _tasks = _project is null
+            ? []
+            : Service.ListTodos(new TodoQuery { Status = "all", ProjectId = _project.Id, Limit = 500 });
+    }
+
+    private IReadOnlyList<TodoDto> DirectTasks(string iterationId) =>
+        _tasks
+            .Where(t => t.IterationId == iterationId)
+            .OrderBy(t => IsTerminal(t.Status))
+            .ThenBy(t => t.Priority)
+            .ThenBy(t => t.DueAt is null)
+            .ThenBy(t => t.DueAt)
+            .ThenBy(t => t.Sort)
+            .ThenBy(t => t.CreatedAt)
+            .ToList();
+
+    private bool Collapsed(string iterationId) => _collapsed.Contains(iterationId);
+
+    private void ToggleGroup(string iterationId)
+    {
+        if (!_collapsed.Add(iterationId))
+        {
+            _collapsed.Remove(iterationId);
+        }
+    }
+
+    private void CompleteIteration(IterationDto iteration)
+    {
+        try
+        {
+            Service.CompleteIteration(iteration.Id, iteration.Revision, null, WriteContext.Manual());
+            Ui.Toast($"迭代「{iteration.Name}」已完成");
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast(ex.Message);
+        }
+    }
+
+    private void ReopenIteration(IterationDto iteration)
+    {
+        try
+        {
+            Service.ReopenIteration(iteration.Id, iteration.Revision, WriteContext.Manual());
+            Ui.Toast($"迭代「{iteration.Name}」已重开");
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast(ex.Message);
+        }
+    }
+
+    private static bool IsTerminal(TodoStatus status) =>
+        status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed or TodoStatus.Canceled;
+
+    private void DeleteIteration(IterationDto iteration)
+    {
+        Service.DeleteIteration(iteration.Id, iteration.Revision);
+        Ui.Toast($"已删除迭代「{iteration.Name}」");
+    }
+
+    private void DeleteProject()
+    {
+        if (_project is null)
+        {
+            return;
+        }
+
+        Service.DeleteProject(_project.Id, _project.Revision);
+        Ui.Toast("项目已删除");
+        Nav.NavigateTo("/projects");
+    }
+
+    private static string StatusLabel(ProjectStatus status) => status switch
+    {
+        ProjectStatus.Active => "进行中",
+        ProjectStatus.Paused => "已暂停",
+        ProjectStatus.Done => "已完成",
+        _ => "已归档",
+    };
+
+    private static string IterationStatusLabel(IterationStatus status) => status switch
+    {
+        IterationStatus.Planned => "计划中",
+        IterationStatus.Active => "进行中",
+        IterationStatus.Done => "已完成",
+        _ => "已归档",
+    };
+
+    private static string ProjectWindow(ProjectDto project)
+    {
+        if (project.TargetAt is null)
+        {
+            return "未设目标";
+        }
+
+        var target = project.TargetAt.Value.ToLocalTime();
+        var days = (target.Date - DateTime.Today).Days;
+        return days switch
+        {
+            < 0 => "已超目标日",
+            0 => "今天到目标日",
+            _ => $"目标 {target:M月d日}",
+        };
+    }
+
+    private static string Window(IterationDto iteration)
+    {
+        if (iteration.StartAt is null && iteration.EndAt is null)
+        {
+            return "未排期";
+        }
+
+        var start = iteration.StartAt?.ToLocalTime().ToString("M月d日") ?? "?";
+        var end = iteration.EndAt?.ToLocalTime().ToString("M月d日") ?? "?";
+        return $"{start} – {end}";
+    }
+}

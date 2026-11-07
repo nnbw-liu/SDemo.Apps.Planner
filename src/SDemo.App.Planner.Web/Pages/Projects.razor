@@ -1,0 +1,99 @@
+@page "/projects"
+@inherits PlannerPageBase
+
+<PageTitle>项目 · 事序</PageTitle>
+
+<div class="filter-bar">
+    @foreach (var filter in Filters)
+    {
+        <button class="chip @(_filter == filter.Key ? "active" : "")" @onclick="() => _filter = filter.Key">
+            @filter.Label
+            <span class="chip-count">@CountFor(filter.Key)</span>
+        </button>
+    }
+</div>
+
+
+@if (Visible.Count == 0)
+{
+    <div class="empty-panel">
+        <div class="empty-emoji">🗂️</div>
+        <h4>@(_filter == "all" ? "还没有项目" : "这个状态下没有项目")</h4>
+        <p>一个项目可以包含多个大迭代；大迭代下面再拆小迭代，任务、Bug、调研都挂在具体迭代里。</p>
+        <button class="btn btn-primary" @onclick="() => Ui.OpenProject()">新建第一个项目</button>
+    </div>
+}
+else
+{
+    <div class="project-grid">
+        @foreach (var project in Visible)
+        {
+            <article class="project-card" @key="project.Id">
+                <div class="project-card-top">
+                    <span class="project-color lg" style="--dot:@project.Color"></span>
+                    <span class="status-pill status-@project.Status.ToString().ToLowerInvariant()">@StatusLabel(project.Status)</span>
+                    <button class="icon-btn" title="编辑项目" @onclick="() => Ui.OpenProject(project)"><Icon Name="edit" Size="15" /></button>
+                </div>
+                <a class="project-card-body" href="/projects/@project.Id">
+                    <h3>@project.Name</h3>
+                    <p>@(string.IsNullOrWhiteSpace(project.Description) ? "还没有项目说明。" : project.Description)</p>
+                    <div class="project-card-progress">
+                        <div class="mini-progress"><span style="width:@project.Progress%"></span></div>
+                        <span>@project.Progress.ToString("F0")%</span>
+                    </div>
+                    <div class="project-card-stats">
+                        <span><strong>@project.OpenTasks</strong> 待办</span>
+                        <span><strong>@project.Iterations.Count</strong> 迭代</span>
+                        @if (project.OverdueTasks > 0)
+                        {
+                            <span class="danger-text"><strong>@project.OverdueTasks</strong> 逾期</span>
+                        }
+                    </div>
+                </a>
+                <footer class="project-card-foot">
+                    <span>@(project.TargetAt is null ? "未设目标日期" : "目标 " + project.TargetAt.Value.ToLocalTime().ToString("M月d日"))</span>
+                    <a class="text-link" href="/projects/@project.Id">进入 <Icon Name="arrow-right" Size="13" /></a>
+                </footer>
+            </article>
+        }
+    </div>
+}
+
+@code {
+    private string _filter = "all";
+    private IReadOnlyList<ProjectDto> _projects = [];
+
+    private static readonly (string Key, string Label)[] Filters =
+    [
+        ("all", "全部"),
+        ("active", "进行中"),
+        ("paused", "暂停"),
+        ("done", "已完成"),
+    ];
+
+    private IReadOnlyList<ProjectDto> Visible => _filter switch
+    {
+        "active" => _projects.Where(p => p.Status == ProjectStatus.Active).ToList(),
+        "paused" => _projects.Where(p => p.Status == ProjectStatus.Paused).ToList(),
+        "done" => _projects.Where(p => p.Status == ProjectStatus.Done).ToList(),
+        _ => _projects,
+    };
+
+    protected override void Reload() => _projects = Service.ListProjects();
+
+    private int CountFor(string key) => key switch
+    {
+        "active" => _projects.Count(p => p.Status == ProjectStatus.Active),
+        "paused" => _projects.Count(p => p.Status == ProjectStatus.Paused),
+        "done" => _projects.Count(p => p.Status == ProjectStatus.Done),
+        _ => _projects.Count,
+    };
+
+    private static string StatusLabel(ProjectStatus status) => status switch
+    {
+        ProjectStatus.Active => "进行中",
+        ProjectStatus.Paused => "已暂停",
+        ProjectStatus.Done => "已完成",
+        _ => "已归档",
+    };
+}

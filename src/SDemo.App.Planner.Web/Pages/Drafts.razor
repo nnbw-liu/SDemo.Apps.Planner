@@ -1,0 +1,134 @@
+@page "/drafts"
+@inherits PlannerPageBase
+
+<PageTitle>草稿箱 · 事序</PageTitle>
+
+@if (_drafts.Count == 0)
+{
+    <div class="empty-panel">
+        <div class="empty-emoji">✍️</div>
+        <h4>没有待审阅的草稿</h4>
+        <p>当 DesktopAgent 从一段话里整理出任务时，会先放到这里等你确认。</p>
+    </div>
+}
+else
+{
+    <div class="draft-list">
+        @foreach (var draft in _drafts)
+        {
+            <article class="card draft-card" @key="draft.DraftId">
+                <header class="draft-head">
+                    <div>
+                        <span class="eyebrow">@SourceLabel(draft.Source) · @draft.CreatedAt.ToLocalTime().ToString("M月d日 HH:mm")</span>
+                        <h3>@DraftTitle(draft)</h3>
+                    </div>
+                    <div class="draft-actions">
+                        <button class="btn btn-primary btn-sm" @onclick="() => AcceptAll(draft)">全部采纳</button>
+                        <button class="btn btn-ghost btn-sm" @onclick="() => Reject(draft)">忽略</button>
+                    </div>
+                </header>
+
+                @if (draft.Questions.Count > 0)
+                {
+                    <div class="draft-questions">
+                        <Icon Name="spark" Size="15" />
+                        <div>
+                            @foreach (var question in draft.Questions)
+                            {
+                                <p>@question</p>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="draft-items">
+                    @foreach (var item in draft.Items)
+                    {
+                        <div class="draft-item @(item.Decision != "pending" ? "settled" : "")" @key="item.DraftItemId">
+                            <div class="draft-item-main">
+                                <strong>@item.Title</strong>
+                                @if (!string.IsNullOrWhiteSpace(item.Notes))
+                                {
+                                    <p>@item.Notes</p>
+                                }
+                                <blockquote>“@item.Excerpt”</blockquote>
+                                <div class="draft-item-meta">
+                                    @if (item.DueAt is not null)
+                                    {
+                                        <span><Icon Name="clock" Size="12" /> @item.DueAt.Value.ToLocalTime().ToString("M月d日 HH:mm")</span>
+                                    }
+                                    <span>优先级 @item.Priority</span>
+                                    @if (item.SuspectDuplicateOf is not null)
+                                    {
+                                        <span class="warn-text">可能与已有任务重复</span>
+                                    }
+                                </div>
+                            </div>
+                            @if (item.Decision == "pending")
+                            {
+                                <div class="draft-item-actions">
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => AcceptOne(draft, item)">采纳</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="status-pill">@(item.Decision == "accepted" ? "已采纳" : "已跳过")</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<DraftDto> _drafts = [];
+
+    protected override void Reload() => _drafts = Service.ListDrafts();
+
+    private void AcceptAll(DraftDto draft)
+    {
+        var items = draft.Items
+            .Where(i => i.Decision == "pending")
+            .Select(i => new DraftAcceptItem { DraftItemId = i.DraftItemId })
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        Service.AcceptDraft(new DraftAcceptRequest { DraftId = draft.DraftId, Items = items }, WriteContext.Manual());
+        Ui.Toast($"已采纳 {items.Count} 条任务");
+    }
+
+    private void AcceptOne(DraftDto draft, DraftItemDto item)
+    {
+        Service.AcceptDraft(
+            new DraftAcceptRequest
+            {
+                DraftId = draft.DraftId,
+                Items = [new DraftAcceptItem { DraftItemId = item.DraftItemId }],
+            },
+            WriteContext.Manual());
+        Ui.Toast("已采纳一条任务");
+    }
+
+    private void Reject(DraftDto draft)
+    {
+        Service.RejectDraft(draft.DraftId, WriteContext.Manual());
+        Ui.Toast("草稿已忽略");
+    }
+
+    private static string DraftTitle(DraftDto draft) =>
+        string.IsNullOrWhiteSpace(draft.SourceSessionId) ? "一段新整理的内容" : $"来自会话 {draft.SourceSessionId}";
+
+    private static string SourceLabel(TodoSource source) => source switch
+    {
+        TodoSource.Ai => "AI 整理",
+        TodoSource.Meeting => "会议",
+        TodoSource.Import => "导入",
+        _ => "手动",
+    };
+}

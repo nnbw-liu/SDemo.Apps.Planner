@@ -178,7 +178,7 @@ public static class SdemoPlannerFindWindow
     for ($i = 0; $i -lt 50; $i++) {
         $root = [System.Windows.Automation.AutomationElement]::RootElement
         $mainCondition = New-Object System.Windows.Automation.PropertyCondition(
-            [System.Windows.Automation.AutomationElement]::NameProperty, '待办与日历 · sdemo.planner')
+            [System.Windows.Automation.AutomationElement]::NameProperty, '事序 · 项目与日常')
         $mainElement = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $mainCondition)
         if ($null -ne $mainElement) { break }
         Start-Sleep -Milliseconds 200

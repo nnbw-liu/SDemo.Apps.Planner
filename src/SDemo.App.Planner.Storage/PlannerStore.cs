@@ -11,7 +11,7 @@ namespace SDemo.App.Planner.Storage;
 /// UI 线程与 MCP 监听线程会并发访问，长生命周期上下文不是线程安全的。
 /// 写操作在**一个事务**里同时落正式表、tag/link、FTS 索引、outbox（P5 同步）与 op_log（审计/撤销）。
 /// </summary>
-public sealed class PlannerStore
+public sealed partial class PlannerStore
 {
     public const string DefaultListId = "li_inbox";
     public const string DefaultListName = "收件箱";
@@ -115,16 +115,49 @@ public sealed class PlannerStore
             query = query.Where(t => t.ListId == listId);
         }
 
+        if (filter.ProjectId is { Length: > 0 } projectId)
+        {
+            query = query.Where(t => t.ProjectId == projectId);
+        }
+
+        if (filter.NoProject)
+        {
+            query = query.Where(t => t.ProjectId == null);
+        }
+
+        if (filter.IterationId is { Length: > 0 } iterationId)
+        {
+            query = query.Where(t => t.IterationId == iterationId);
+        }
+
+        if (filter.Kind is { Length: > 0 } kind)
+        {
+            query = query.Where(t => t.Kind == kind);
+        }
+
         switch (filter.Status)
         {
             case "open":
-                query = query.Where(t => t.Status != "done");
+            case "active":
+                query = query.Where(t => t.Status == "open" || t.Status == "doing");
+                break;
+            case "new":
+                query = query.Where(t => t.Status == "open");
                 break;
             case "doing":
                 query = query.Where(t => t.Status == "doing");
                 break;
             case "done":
                 query = query.Where(t => t.Status == "done");
+                break;
+            case "verified":
+                query = query.Where(t => t.Status == "verified");
+                break;
+            case "closed":
+                query = query.Where(t => t.Status == "closed");
+                break;
+            case "canceled":
+                query = query.Where(t => t.Status == "canceled");
                 break;
         }
 
@@ -146,18 +179,32 @@ public sealed class PlannerStore
 
         if (filter.Keyword is { Length: > 0 } keyword)
         {
-            query = query.Where(t => t.Title.Contains(keyword)
-                                     || (t.Notes != null && t.Notes.Contains(keyword)));
+            var needle = keyword.ToLowerInvariant();
+            query = query.Where(t => t.Title.ToLower().Contains(needle)
+                                     || (t.Notes != null && t.Notes.ToLower().Contains(needle))
+                                     || (t.CompletionNote != null && t.CompletionNote.ToLower().Contains(needle)));
         }
 
         var limit = Math.Clamp(filter.Limit, 1, PlannerConstants.MaxListLimit);
-        return query
-            .OrderBy(t => t.DueAt == null)
-            .ThenBy(t => t.DueAt)
-            .ThenByDescending(t => t.Priority)
-            .ThenByDescending(t => t.UpdatedAt)
-            .Take(limit)
-            .ToList();
+        var grouped = query.OrderBy(t =>
+            t.Status == "done" || t.Status == "verified" || t.Status == "closed" || t.Status == "canceled");
+
+        var ordered = filter.Sort switch
+        {
+            "priority" => grouped
+                .ThenBy(t => t.Priority)
+                .ThenBy(t => t.DueAt == null)
+                .ThenBy(t => t.DueAt)
+                .ThenByDescending(t => t.UpdatedAt),
+            "updated" => grouped.ThenByDescending(t => t.UpdatedAt),
+            "created" => grouped.ThenByDescending(t => t.CreatedAt),
+            _ => grouped
+                .ThenBy(t => t.DueAt == null)
+                .ThenBy(t => t.DueAt)
+                .ThenBy(t => t.Priority)
+                .ThenByDescending(t => t.UpdatedAt),
+        };
+        return ordered.Take(limit).ToList();
     }
 
     public IReadOnlyList<TodoRow> QueryDeletedTodos(int limit)
@@ -294,7 +341,7 @@ public sealed class PlannerStore
     {
         using var db = Open();
         return db.Todos.AsNoTracking()
-            .Where(t => t.DeletedAt == null && t.Status != "done")
+            .Where(t => t.DeletedAt == null && (t.Status == "open" || t.Status == "doing"))
             .OrderByDescending(t => t.UpdatedAt)
             .Take(Math.Clamp(limit, 1, 500))
             .Select(t => new TodoTitleRow(t.Id, t.Title, t.Notes))
@@ -304,15 +351,18 @@ public sealed class PlannerStore
     public StatsRaw GetStats(DateTime startOfTodayUtc, DateTime startOfTomorrowUtc, DateTime sevenDaysAgoUtc)
     {
         using var db = Open();
-        var open = db.Todos.AsNoTracking().Where(t => t.DeletedAt == null && t.Status != "done");
+        var open = db.Todos.AsNoTracking().Where(t => t.DeletedAt == null
+            && (t.Status == "open" || t.Status == "doing"));
         var openTotal = open.Count();
         var dueToday = open.Count(t => t.DueAt != null && t.DueAt >= startOfTodayUtc && t.DueAt < startOfTomorrowUtc);
         var overdue = open.Count(t => t.DueAt != null && t.DueAt < startOfTodayUtc);
         var doneToday = db.Todos.AsNoTracking()
-            .Count(t => t.Status == "done" && t.CompletedAt != null
+            .Count(t => (t.Status == "done" || t.Status == "verified" || t.Status == "closed")
+                        && t.CompletedAt != null
                         && t.CompletedAt >= startOfTodayUtc && t.CompletedAt < startOfTomorrowUtc);
         var doneLast7 = db.Todos.AsNoTracking()
-            .Count(t => t.Status == "done" && t.CompletedAt != null && t.CompletedAt >= sevenDaysAgoUtc);
+            .Count(t => (t.Status == "done" || t.Status == "verified" || t.Status == "closed")
+                        && t.CompletedAt != null && t.CompletedAt >= sevenDaysAgoUtc);
         var createdLast7 = db.Todos.AsNoTracking().Count(t => t.CreatedAt >= sevenDaysAgoUtc);
 
         var listRows = db.Lists.AsNoTracking().ToList();

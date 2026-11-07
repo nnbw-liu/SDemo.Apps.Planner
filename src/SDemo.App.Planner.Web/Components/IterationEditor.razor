@@ -1,0 +1,225 @@
+@inherits PlannerPageBase
+
+<Modal Title="@(Ui.EditingIteration is null ? "新建迭代" : "编辑迭代")"
+       Eyebrow="项目节奏"
+       SizeClass="modal-md" OnClose="Close">
+    <ChildContent>
+    <div class="form-grid">
+        @if (Ui.EditingIteration is null)
+        {
+            <div class="field field-full">
+                <span>层级</span>
+                <div class="segmented">
+                    <button type="button" class="segment @(_level == IterationLevel.Big ? "active" : "")"
+                            @onclick="() => SetLevel(IterationLevel.Big)">大迭代 · 版本 / 里程碑</button>
+                    <button type="button" class="segment @(_level == IterationLevel.Small ? "active" : "")"
+                            @onclick="() => SetLevel(IterationLevel.Small)" disabled="@(_bigs.Count == 0)">小迭代 · Sprint</button>
+                </div>
+            </div>
+
+            @if (_level == IterationLevel.Small)
+            {
+                <label class="field field-full">
+                    <span>所属大迭代</span>
+                    <SelectBox TValue="string"
+                               Value="_parentId"
+                               ValueChanged="value => _parentId = value"
+                               Options="ParentOptions"
+                               Placeholder="选择大迭代" />
+                </label>
+            }
+        }
+        else
+        {
+            <div class="form-hint field-full">
+                @(Ui.EditingIteration.Level == IterationLevel.Big ? "大迭代" : "小迭代 · " + Ui.EditingIteration.ParentName)
+                <span>层级创建后不可修改；需要调整请新建迭代。</span>
+            </div>
+        }
+
+        <label class="field field-full">
+            <span>名称</span>
+            <input class="input input-lg" placeholder="例如：0.9 发布 / Sprint 12" @bind="_name" @bind:event="oninput" autofocus />
+        </label>
+
+        <label class="field field-full">
+            <span>目标</span>
+            <textarea class="input textarea" rows="2" placeholder="这次迭代要达成什么？" @bind="_goal"></textarea>
+        </label>
+
+        <label class="field">
+            <span>开始</span>
+            <input class="input" type="date" value="@_startDate" @onchange="e => _startDate = DateValue(e)" />
+        </label>
+
+        <label class="field">
+            <span>结束</span>
+            <input class="input" type="date" value="@_endDate" @onchange="e => _endDate = DateValue(e)" />
+        </label>
+
+        @if (Ui.EditingIteration is not null)
+        {
+            <label class="field field-full">
+                <span>状态</span>
+                <SelectBox TValue="IterationStatus"
+                           Value="_status"
+                           ValueChanged="value => _status = value"
+                           Options="StatusOptions"
+                           Placeholder="计划中" />
+            </label>
+        }
+
+        @if (_error is not null)
+        {
+            <div class="form-error field-full">@_error</div>
+        }
+    </div>
+    </ChildContent>
+
+    <Footer>
+        <button class="btn btn-ghost" @onclick="Close">取消</button>
+        <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+            @(_saving ? "保存中…" : "保存迭代")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private string _name = string.Empty;
+    private string _goal = string.Empty;
+    private string _startDate = string.Empty;
+    private string _endDate = string.Empty;
+    private IterationStatus _status = IterationStatus.Planned;
+    private string _parentId = string.Empty;
+    private IterationLevel _level = IterationLevel.Big;
+    private bool _saving;
+    private string? _error;
+
+    private IReadOnlyList<IterationDto> _bigs = [];
+
+    private IReadOnlyList<SelectOption<string>> ParentOptions =>
+        [new("", "选择大迭代"), .. _bigs.Select(b => new SelectOption<string>(b.Id, b.Name))];
+
+    private static IReadOnlyList<SelectOption<IterationStatus>> StatusOptions =>
+    [
+        new(IterationStatus.Planned, "计划中"),
+        new(IterationStatus.Active, "进行中"),
+        new(IterationStatus.Done, "已完成"),
+        new(IterationStatus.Archived, "已归档"),
+    ];
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _bigs = Service.ListIterations(Ui.IterationProjectId)
+            .Where(i => i.Level == IterationLevel.Big)
+            .ToList();
+
+        if (Ui.EditingIteration is { } iteration)
+        {
+            _level = iteration.Level;
+            _parentId = iteration.ParentId ?? string.Empty;
+            _name = iteration.Name;
+            _goal = iteration.Goal ?? string.Empty;
+            _status = iteration.Status;
+            _startDate = iteration.StartAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? string.Empty;
+            _endDate = iteration.EndAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? string.Empty;
+        }
+        else if (Ui.IterationParentId is { Length: > 0 } parentId)
+        {
+            _level = IterationLevel.Small;
+            _parentId = parentId;
+        }
+    }
+
+    private void SetLevel(IterationLevel level)
+    {
+        _level = level;
+        if (level == IterationLevel.Big)
+        {
+            _parentId = string.Empty;
+        }
+    }
+
+    private void Close() => Ui.CloseIteration();
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _error = "迭代名称不能为空。";
+            return;
+        }
+
+        if (_level == IterationLevel.Small && string.IsNullOrEmpty(_parentId))
+        {
+            _error = "小迭代需要选择所属大迭代。";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var start = ParseDate(_startDate);
+            var end = ParseDate(_endDate);
+            if (Ui.EditingIteration is { } iteration)
+            {
+                Service.UpdateIteration(
+                    iteration.Id,
+                    iteration.Revision,
+                    new IterationPatch
+                    {
+                        Name = _name.Trim(),
+                        Goal = string.IsNullOrWhiteSpace(_goal) ? null : _goal.Trim(),
+                        ClearGoal = string.IsNullOrWhiteSpace(_goal),
+                        Status = _status,
+                        StartAt = start,
+                        ClearStartAt = start is null,
+                        EndAt = end,
+                        ClearEndAt = end is null,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("迭代已更新");
+            }
+            else
+            {
+                Service.CreateIteration(
+                    new IterationInput
+                    {
+                        ProjectId = Ui.IterationProjectId!,
+                        ParentId = _level == IterationLevel.Small ? _parentId : null,
+                        Level = _level,
+                        Name = _name.Trim(),
+                        Goal = string.IsNullOrWhiteSpace(_goal) ? null : _goal.Trim(),
+                        StartAt = start,
+                        EndAt = end,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("迭代已创建");
+            }
+
+            Ui.CloseIteration();
+        }
+        catch (Exception ex) when (ex is PlannerException or ArgumentException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static DateTimeOffset? ParseDate(string value)
+    {
+        if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", out var date))
+        {
+            return null;
+        }
+
+        var local = date.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+    }
+}
+

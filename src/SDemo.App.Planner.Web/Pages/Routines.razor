@@ -1,0 +1,227 @@
+@page "/routines"
+@inherits PlannerPageBase
+
+<PageTitle>日常 · 事序</PageTitle>
+
+<div class="page-toolbar">
+    <button class="btn btn-primary btn-sm" @onclick="() => Ui.OpenRoutine()"><Icon Name="plus" Size="14" /> 新建日常</button>
+</div>
+
+<section class="routine-week card">
+    <div class="routine-week-head">
+        <div>
+            <span class="eyebrow">This week</span>
+            <h3>这一周的节奏</h3>
+        </div>
+        <div class="week-summary">
+            <strong>@WeekDone<span>/@WeekTotal</span></strong>
+            <small>次打卡</small>
+        </div>
+    </div>
+    <div class="week-strip">
+        @foreach (var day in _week)
+        {
+            var date = DateOnly.ParseExact(day.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var percent = day.Total == 0 ? 0 : day.Done * 100.0 / day.Total;
+            <div class="week-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "") @(percent >= 100 && day.Total > 0 ? "perfect" : "")">
+                <span class="week-day-name">@WeekdayLabel(date.DayOfWeek)</span>
+                <div class="week-ring" style="--progress:@(percent * 3.6)deg">
+                    <span>@day.Done/@day.Total</span>
+                </div>
+                <small>@day.Count 次</small>
+            </div>
+        }
+    </div>
+</section>
+
+<div class="routine-columns">
+    <section class="card">
+        <header class="card-head">
+            <div>
+                <span class="eyebrow">Today</span>
+                <h3>今天要做</h3>
+            </div>
+            <span class="muted">@_todayDone/@_today.Count 完成</span>
+        </header>
+
+        @if (_today.Count == 0)
+        {
+            <div class="empty-inline">
+                <span class="empty-emoji">🌱</span>
+                <div>
+                    <strong>今天没有排定的日常</strong>
+                    <p>可以新建一个，或者享受没有打卡的一天。</p>
+                </div>
+                <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenRoutine()">新建</button>
+            </div>
+        }
+        else
+        {
+            <div class="routine-list roomy">
+                @foreach (var routine in _today)
+                {
+                    var done = routine.DoneToday;
+                    <div class="routine-row @(done ? "is-done" : "")" @key="routine.Id">
+                        <button class="routine-emoji lg" @onclick="() => Ui.OpenRoutine(routine)">@routine.Emoji</button>
+                        <div class="routine-main">
+                            <div class="routine-title-line">
+                                <strong>@routine.Title</strong>
+                                @if (done)
+                                {
+                                    <span class="done-chip"><Icon Name="check" Size="12" /> 完成</span>
+                                }
+                            </div>
+                            <div class="routine-meta">
+                                <span>@Schedule(routine)</span>
+                                <span>· 目标 @routine.TargetCount 次</span>
+                                @if (routine.Remind)
+                                {
+                                    <span class="remind-chip"><Icon Name="bell" Size="11" /> 提醒</span>
+                                }
+                            </div>
+                            <div class="routine-dots">
+                                @for (var i = 0; i < Math.Min(routine.TargetCount, 12); i++)
+                                {
+                                    <i class="@(i < routine.TodayCount ? "filled" : "")"></i>
+                                }
+                            </div>
+                        </div>
+                        <div class="routine-actions">
+                            @if (routine.TodayCount > 0)
+                            {
+                                <button class="icon-btn" title="撤销一次" @onclick="() => Check(routine, -1)">−</button>
+                            }
+                            <button class="routine-check lg @(done ? "checked" : "")" title="打卡" @onclick="() => Check(routine, 1)">
+                                <Icon Name="check" Size="16" />
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="card">
+        <header class="card-head">
+            <div>
+                <span class="eyebrow">All routines</span>
+                <h3>全部日常</h3>
+            </div>
+            <span class="muted">@_all.Count 项</span>
+        </header>
+
+        @if (_all.Count == 0)
+        {
+            <div class="empty-inline">
+                <span class="empty-emoji">⏰</span>
+                <div>
+                    <strong>还没有日常</strong>
+                    <p>试着从「每天 9:00 吃药」或「每 60 分钟起身」开始。</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="routine-manage">
+                @foreach (var routine in _all)
+                {
+                    <div class="routine-manage-row @(routine.Enabled ? "" : "disabled")" @key="routine.Id">
+                        <span class="routine-emoji">@routine.Emoji</span>
+                        <div class="routine-manage-main">
+                            <div class="routine-title-line">
+                                <strong>@routine.Title</strong>
+                                <span class="days-label">@RoutineDays.Label(routine.DaysMask)</span>
+                            </div>
+                            <div class="routine-meta">
+                                <span>@Schedule(routine)</span>
+                                <span>· @routine.TargetCount 次</span>
+                            </div>
+                        </div>
+                        <button class="mini-toggle @(routine.Remind ? "on" : "")" title="提醒开关"
+                                @onclick="() => ToggleRemind(routine)">
+                            <span></span>
+                        </button>
+                        <button class="icon-btn" title="编辑" @onclick="() => Ui.OpenRoutine(routine)"><Icon Name="edit" Size="14" /></button>
+                        @if (_confirmDeleteId == routine.Id)
+                        {
+                            <button class="btn btn-danger btn-xs" @onclick="() => Delete(routine)">确认</button>
+                            <button class="btn btn-ghost btn-xs" @onclick="() => _confirmDeleteId = null">取消</button>
+                        }
+                        else
+                        {
+                            <button class="icon-btn" title="删除" @onclick="() => _confirmDeleteId = routine.Id"><Icon Name="trash" Size="14" /></button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<RoutineDto> _today = [];
+    private IReadOnlyList<RoutineDto> _all = [];
+    private IReadOnlyList<RoutineDayDto> _week = [];
+    private string? _confirmDeleteId;
+
+    private int _todayDone => _today.Count(r => r.DoneToday);
+    private int WeekDone => _week.Sum(d => d.Done);
+    private int WeekTotal => _week.Sum(d => d.Total);
+
+    protected override void Reload()
+    {
+        _today = Service.ListRoutines();
+        _all = Service.ListAllRoutines();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var monday = today.AddDays(-RoutineDays.BitFor(today.DayOfWeek));
+        _week = Service.RoutineWeek(monday.AddDays(6), 7);
+    }
+
+    private void Check(RoutineDto routine, int delta)
+    {
+        Service.CheckRoutine(routine.Id, delta);
+        if (delta > 0 && routine.DoneToday)
+        {
+            Ui.Toast($"「{routine.Title}」今天完成了");
+        }
+    }
+
+    private void ToggleRemind(RoutineDto routine)
+    {
+        if (routine.Revision <= 0)
+        {
+            return;
+        }
+
+        Service.UpdateRoutine(routine.Id, routine.Revision, new RoutinePatch { Remind = !routine.Remind }, WriteContext.Manual());
+        Ui.Toast(routine.Remind ? "已关闭提醒" : "已开启提醒");
+    }
+
+    private void Delete(RoutineDto routine)
+    {
+        Service.DeleteRoutine(routine.Id, routine.Revision);
+        _confirmDeleteId = null;
+        Ui.Toast($"已删除「{routine.Title}」");
+    }
+
+    private static string Schedule(RoutineDto routine)
+    {
+        if (routine.IntervalMinutes is > 0)
+        {
+            return $"{routine.TimeOfDay}–{routine.ActiveEnd} · 每 {routine.IntervalMinutes} 分钟";
+        }
+
+        return routine.TimeOfDay is null ? "随时" : routine.TimeOfDay;
+    }
+
+    private static string WeekdayLabel(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "周一",
+        DayOfWeek.Tuesday => "周二",
+        DayOfWeek.Wednesday => "周三",
+        DayOfWeek.Thursday => "周四",
+        DayOfWeek.Friday => "周五",
+        DayOfWeek.Saturday => "周六",
+        _ => "周日",
+    };
+}

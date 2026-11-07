@@ -1,0 +1,359 @@
+@page "/tasks"
+@inherits PlannerPageBase
+
+<PageTitle>任务 · 事序</PageTitle>
+
+<div class="filter-bar wrap">
+    <SelectBox TValue="string"
+               Compact="true"
+               Value="_status"
+               ValueChanged="SetStatus"
+               Options="StatusOptions"
+               Placeholder="全部状态" />
+
+    <div class="filter-divider"></div>
+
+    <button class="chip @(_kind is null ? "active" : "")" @onclick="() => SetKind(null)">全部类型</button>
+    @foreach (var kind in Kinds)
+    {
+        <button class="chip @(_kind == kind.Key ? "active" : "")" @onclick="() => SetKind(kind.Key)">
+            <span class="kind-mark @KindClass(kind.Key)"></span>@kind.Label
+        </button>
+    }
+
+    <div class="filter-divider"></div>
+
+    <SelectBox TValue="string"
+               Compact="true"
+               Value="_projectId ?? string.Empty"
+               ValueChanged="OnProjectChanged"
+               Options="ProjectOptions"
+               Placeholder="所有项目" />
+
+    <SelectBox TValue="TodoSort"
+               Compact="true"
+               Value="_sort"
+               ValueChanged="SetSort"
+               Options="SortOptions"
+               Placeholder="优先级" />
+
+    <div class="filter-divider"></div>
+
+    <div class="segmented group-mode" role="group" aria-label="分组方式">
+        <button type="button" class="@(_groupMode == GroupMode.Project ? "active" : "")"
+                @onclick="() => SetGroupMode(GroupMode.Project)">按项目</button>
+        <button type="button" class="@(_groupMode == GroupMode.ProjectIteration ? "active" : "")"
+                @onclick="() => SetGroupMode(GroupMode.ProjectIteration)">项目 + 迭代</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Q))
+    {
+        <span class="search-note">
+            搜索：<strong>@Q</strong>
+            <button class="search-note-clear" type="button" @onclick="ClearSearch">
+                <Icon Name="x" Size="12" /> 清除
+            </button>
+        </span>
+    }
+</div>
+
+@if (_groups.Count == 0)
+{
+    <div class="empty-panel">
+        <div class="empty-emoji">✅</div>
+        <h4>这里暂时是空的</h4>
+        <p>要么筛选条件太窄，要么真的做完了。换一个条件看看。</p>
+        <button class="btn btn-ghost" @onclick="ResetFilters">清除筛选</button>
+    </div>
+}
+else
+{
+    <div class="task-groups">
+        @foreach (var group in _groups)
+        {
+            var projectKey = ProjectKey(group);
+            var projectCollapsed = IsCollapsed(projectKey);
+            <section class="task-group" @key="group.Key">
+                <header class="task-group-head group-toggle-head" @onclick="() => ToggleGroup(projectKey)">
+                    <Icon Name="chevron-down" Size="14" Class="@GroupChevron(projectKey)" />
+                    @if (group.Project is not null)
+                    {
+                        <span class="project-color" style="--dot:@group.Project.Color"></span>
+                        <a href="/projects/@group.Project.Id" @onclick:stopPropagation="true">@group.Project.Name</a>
+                    }
+                    else
+                    {
+                        <span class="project-color muted-dot"></span>
+                        <span>未归属项目</span>
+                    }
+                    <span class="group-count">@group.Items.Count</span>
+                    <button class="icon-btn" title="在此项目下新建任务"
+                            @onclick:stopPropagation="true"
+                            @onclick="() => Ui.OpenTask(projectId: group.Project?.Id)">
+                        <Icon Name="plus" Size="14" />
+                    </button>
+                </header>
+
+                @if (!projectCollapsed)
+                {
+                    @if (_groupMode == GroupMode.Project)
+                    {
+                        <div class="task-list">
+                            @foreach (var todo in group.Items)
+                            {
+                                <TaskRow Todo="todo" />
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="task-subgroups">
+                            @foreach (var iteration in group.Iterations)
+                            {
+                                <IterationGroupView Iteration="iteration"
+                                                    Collapsed="_collapsed"
+                                                    OnToggle="ToggleGroup" />
+                            }
+                        </div>
+                    }
+                }
+            </section>
+        }
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? Q { get; set; }
+
+    [Inject]
+    private NavigationManager Nav { get; set; } = default!;
+
+    private string _status = "all";
+    private WorkItemKind? _kind;
+    private string? _projectId;
+    private TodoSort _sort = TodoSort.Priority;
+    private GroupMode _groupMode = GroupMode.Project;
+    private IReadOnlyList<ProjectDto> _projects = [];
+    private IReadOnlyList<IterationDto> _iterations = [];
+    private IReadOnlyList<TaskGroup> _groups = [];
+    private readonly HashSet<string> _collapsed = [];
+    private string? _lastQ;
+
+    private static readonly IReadOnlyList<SelectOption<string>> StatusOptions =
+    [
+        new("all", "全部状态"),
+        new("active", "未完成"),
+        new("new", "新建"),
+        new("doing", "进行中"),
+        new("done", "已完成"),
+        new("verified", "已验证"),
+        new("closed", "已关闭"),
+        new("canceled", "已取消"),
+    ];
+
+    private static readonly IReadOnlyList<SelectOption<TodoSort>> SortOptions =
+    [
+        new(TodoSort.Priority, "优先级"),
+        new(TodoSort.Due, "截止时间"),
+        new(TodoSort.Updated, "最近更新"),
+        new(TodoSort.Created, "创建时间"),
+    ];
+
+    private IReadOnlyList<SelectOption<string>> ProjectOptions =>
+        [new("", "所有项目"), .. _projects.Select(p => new SelectOption<string>(p.Id, p.Name))];
+
+    private static readonly (WorkItemKind Key, string Label)[] Kinds =
+    [
+        (WorkItemKind.Task, "任务"),
+        (WorkItemKind.Bug, "Bug"),
+        (WorkItemKind.Research, "调研"),
+        (WorkItemKind.Chore, "杂事"),
+    ];
+
+    protected override void Reload()
+    {
+        _projects = Service.ListProjects();
+        _iterations = Service.ListIterations();
+        var todos = Service.ListTodos(new TodoQuery
+        {
+            Status = _status,
+            Kind = _kind,
+            ProjectId = string.IsNullOrEmpty(_projectId) ? null : _projectId,
+            Q = string.IsNullOrWhiteSpace(Q) ? null : Q,
+            Sort = _sort,
+            Limit = 500,
+        });
+
+        _groups = todos
+            .GroupBy(t => t.ProjectId)
+            .Select(g =>
+            {
+                var project = g.Key is null ? null : _projects.FirstOrDefault(p => p.Id == g.Key);
+                var items = g.ToList();
+                var iterations = _groupMode == GroupMode.ProjectIteration
+                    ? BuildIterationGroups(items, g.Key)
+                    : [];
+                return new TaskGroup(g.Key ?? string.Empty, project, items, iterations);
+            })
+            .OrderByDescending(g => g.Project?.Status == ProjectStatus.Active)
+            .ThenBy(g => g.Project?.Name)
+            .ToList();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (_lastQ != Q)
+        {
+            _lastQ = Q;
+            if (!string.IsNullOrWhiteSpace(Q))
+            {
+                _status = "all";
+            }
+
+            Reload();
+        }
+    }
+
+    private void SetStatus(string status)
+    {
+        _status = status;
+        Reload();
+    }
+
+    private void ClearSearch()
+    {
+        Q = null;
+        Nav.NavigateTo("/tasks");
+    }
+
+    private void SetKind(WorkItemKind? kind)
+    {
+        _kind = kind;
+        Reload();
+    }
+
+    private void SetSort(TodoSort sort)
+    {
+        _sort = sort;
+        Reload();
+    }
+
+    private void SetGroupMode(GroupMode mode)
+    {
+        if (_groupMode == mode)
+        {
+            return;
+        }
+
+        _groupMode = mode;
+        Reload();
+    }
+
+    private void ToggleGroup(string key)
+    {
+        if (!_collapsed.Remove(key))
+        {
+            _collapsed.Add(key);
+        }
+    }
+
+    private bool IsCollapsed(string key) => _collapsed.Contains(key);
+
+    private string GroupChevron(string key) =>
+        _collapsed.Contains(key) ? "group-toggle collapsed" : "group-toggle";
+
+    private static string ProjectKey(TaskGroup group) => "p:" + group.Key;
+
+    private void OnProjectChanged(string value)
+    {
+        _projectId = string.IsNullOrEmpty(value) ? null : value;
+        Reload();
+    }
+
+    private void ResetFilters()
+    {
+        _status = "all";
+        _kind = null;
+        _projectId = null;
+        _sort = TodoSort.Priority;
+        Reload();
+    }
+
+    /// <summary>把项目内的任务按「大迭代 → 小迭代」收拢；没有迭代的放在最后一组。</summary>
+    private IReadOnlyList<TaskIterationGroup> BuildIterationGroups(IReadOnlyList<TodoDto> items, string? projectId)
+    {
+        var iterations = _iterations.Where(i => i.ProjectId == projectId).ToList();
+        var byIteration = items
+            .GroupBy(t => t.IterationId ?? string.Empty)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<TodoDto>)g.ToList());
+        var consumed = new HashSet<string>();
+        var result = new List<TaskIterationGroup>();
+
+        foreach (var big in iterations
+                     .Where(i => i.Level == IterationLevel.Big)
+                     .OrderBy(i => i.Sort))
+        {
+            var children = iterations
+                .Where(i => i.ParentId == big.Id)
+                .OrderBy(i => i.Sort)
+                .Select(child => new TaskIterationGroup(
+                    "i:" + child.Id,
+                    $"{child.ParentName ?? big.Name} · {child.Name}",
+                    byIteration.GetValueOrDefault(child.Id) ?? [],
+                    []))
+                .Where(child => child.TotalCount > 0)
+                .ToList();
+            var own = byIteration.GetValueOrDefault(big.Id) ?? [];
+
+            if (own.Count == 0 && children.Count == 0)
+            {
+                continue;
+            }
+
+            result.Add(new TaskIterationGroup(
+                "i:" + big.Id,
+                big.Name,
+                own,
+                children));
+            consumed.Add(big.Id);
+            foreach (var child in iterations.Where(i => i.ParentId == big.Id))
+            {
+                consumed.Add(child.Id);
+            }
+        }
+
+        // 父级缺失的孤儿迭代 / 查询结果里的未知迭代仍然单独成组，避免任务凭空消失。
+        foreach (var (iterationId, groupItems) in byIteration
+                     .Where(pair => pair.Key.Length > 0 && !consumed.Contains(pair.Key))
+                     .OrderBy(pair => pair.Key))
+        {
+            var iteration = _iterations.FirstOrDefault(i => i.Id == iterationId);
+            var label = iteration is null
+                ? groupItems[0].IterationName ?? "未归入迭代"
+                : string.IsNullOrWhiteSpace(iteration.ParentName)
+                    ? iteration.Name
+                    : $"{iteration.ParentName} · {iteration.Name}";
+            result.Add(new TaskIterationGroup("i:" + iterationId, label, groupItems, []));
+        }
+
+        if (byIteration.GetValueOrDefault(string.Empty) is { Count: > 0 } loose)
+        {
+            result.Add(new TaskIterationGroup("i:none", "未归入迭代", loose, []));
+        }
+
+        return result;
+    }
+
+    private enum GroupMode
+    {
+        Project,
+        ProjectIteration,
+    }
+
+    private sealed record TaskGroup(
+        string Key,
+        ProjectDto? Project,
+        IReadOnlyList<TodoDto> Items,
+        IReadOnlyList<TaskIterationGroup> Iterations);
+}

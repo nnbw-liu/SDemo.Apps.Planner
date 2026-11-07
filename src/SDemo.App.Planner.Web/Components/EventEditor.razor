@@ -1,0 +1,227 @@
+@inherits PlannerPageBase
+
+<Modal Title="@(Ui.EditingEvent is null ? "新建日程" : "编辑日程")"
+       Eyebrow="日程"
+       SizeClass="modal-md" OnClose="Close">
+    <ChildContent>
+    <div class="form-grid">
+        <label class="field field-full">
+            <span>日程标题</span>
+            <input class="input input-lg" placeholder="例如：周会 / 牙医 / 交付评审" @bind="_title" @bind:event="oninput" autofocus />
+        </label>
+
+        <label class="field">
+            <span>开始日期</span>
+            <input class="input" type="date" value="@_startDate" @onchange="e => _startDate = DateValue(e)" />
+        </label>
+
+        <label class="field">
+            <span>开始时间</span>
+            <input class="input" type="time" value="@_startTime" @onchange="e => _startTime = TimeValue(e)" />
+        </label>
+
+        <label class="field">
+            <span>结束日期</span>
+            <input class="input" type="date" value="@_endDate" @onchange="e => _endDate = DateValue(e)" />
+        </label>
+
+        <label class="field">
+            <span>结束时间</span>
+            <input class="input" type="time" value="@_endTime" @onchange="e => _endTime = TimeValue(e)" />
+        </label>
+
+        <label class="field field-full">
+            <span>地点</span>
+            <input class="input" placeholder="可选，例如：三楼会议室 / 线上" @bind="_location" />
+        </label>
+
+        <label class="field field-full">
+            <span>参与人</span>
+            <input class="input" placeholder="可选，用逗号分隔" @bind="_participants" />
+        </label>
+
+        <label class="field field-full">
+            <span>备注</span>
+            <textarea class="input textarea" rows="3" placeholder="议程、准备事项或链接…" @bind="_notes"></textarea>
+        </label>
+
+        @if (_error is not null)
+        {
+            <div class="form-error field-full">@_error</div>
+        }
+    </div>
+    </ChildContent>
+
+    <Footer>
+        @if (Ui.EditingEvent is not null)
+        {
+            <button class="btn btn-danger btn-sm" style="margin-right:auto" @onclick="Delete">
+                @(_confirmDelete ? "确认删除" : "删除")
+            </button>
+        }
+        <button class="btn btn-ghost" @onclick="Close">取消</button>
+        <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+            @(_saving ? "保存中…" : "保存日程")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    private string _title = string.Empty;
+    private string _startDate = string.Empty;
+    private string _startTime = "09:00";
+    private string _endDate = string.Empty;
+    private string _endTime = "10:00";
+    private string _location = string.Empty;
+    private string _participants = string.Empty;
+    private string _notes = string.Empty;
+    private bool _saving;
+    private bool _confirmDelete;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        var preset = (Ui.PresetEventDate ?? DateTime.Today).Date;
+        _startDate = preset.ToString("yyyy-MM-dd");
+        _endDate = _startDate;
+
+        if (Ui.EditingEvent is { } evt)
+        {
+            var start = evt.StartAt.ToLocalTime();
+            var end = evt.EndAt.ToLocalTime();
+            _title = evt.Title;
+            _startDate = start.ToString("yyyy-MM-dd");
+            _startTime = start.ToString("HH:mm");
+            _endDate = end.ToString("yyyy-MM-dd");
+            _endTime = end.ToString("HH:mm");
+            _location = evt.Location ?? string.Empty;
+            _participants = string.Join(", ", evt.Participants);
+            _notes = evt.Notes ?? string.Empty;
+        }
+    }
+
+    private void Close() => Ui.CloseEvent();
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "日程需要一个标题。";
+            return;
+        }
+
+        if (!TryBuildRange(out var start, out var end))
+        {
+            _error = "时间格式不对，或者结束时间早于开始时间。";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var participants = _participants
+                .Split([',', '，', ';', '；'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (Ui.EditingEvent is { } evt)
+            {
+                Service.UpdateEvent(
+                    evt.Id,
+                    evt.Revision,
+                    new EventPatch
+                    {
+                        Title = _title.Trim(),
+                        StartAt = start,
+                        EndAt = end,
+                        Notes = NullIfEmpty(_notes),
+                        ClearNotes = string.IsNullOrWhiteSpace(_notes),
+                        Location = NullIfEmpty(_location),
+                        ClearLocation = string.IsNullOrWhiteSpace(_location),
+                        Participants = participants,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("日程已更新");
+            }
+            else
+            {
+                Service.CreateEvent(
+                    new EventCreateInput
+                    {
+                        Title = _title.Trim(),
+                        StartAt = start,
+                        EndAt = end,
+                        Notes = NullIfEmpty(_notes),
+                        Location = NullIfEmpty(_location),
+                        Participants = participants,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("日程已创建");
+            }
+
+            Ui.CloseEvent();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Delete()
+    {
+        if (!_confirmDelete)
+        {
+            _confirmDelete = true;
+            return;
+        }
+
+        if (Ui.EditingEvent is not { } evt)
+        {
+            return;
+        }
+
+        try
+        {
+            Service.DeleteEvent(evt.Id, evt.Revision, "用户删除", WriteContext.Manual());
+            Ui.Toast("日程已移入回收站");
+            Ui.CloseEvent();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private bool TryBuildRange(out DateTimeOffset start, out DateTimeOffset end)
+    {
+        start = default;
+        end = default;
+        if (!DateOnly.TryParseExact(_startDate, "yyyy-MM-dd", out var startDay)
+            || !DateOnly.TryParseExact(_endDate, "yyyy-MM-dd", out var endDay)
+            || !TimeOnly.TryParseExact(_startTime, "HH:mm", out var startClock)
+            || !TimeOnly.TryParseExact(_endTime, "HH:mm", out var endClock))
+        {
+            return false;
+        }
+
+        var startLocal = startDay.ToDateTime(startClock);
+        var endLocal = endDay.ToDateTime(endClock);
+        if (endLocal <= startLocal)
+        {
+            return false;
+        }
+
+        start = new DateTimeOffset(startLocal, TimeZoneInfo.Local.GetUtcOffset(startLocal));
+        end = new DateTimeOffset(endLocal, TimeZoneInfo.Local.GetUtcOffset(endLocal));
+        return true;
+    }
+
+    private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
+

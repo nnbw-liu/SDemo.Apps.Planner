@@ -1,0 +1,278 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="/">
+            <span class="brand-mark">S<span>.</span></span>
+            <span class="brand-copy">
+                <strong>事序</strong>
+                <small>项目与日常</small>
+            </span>
+        </a>
+
+        <div class="nav-group-label">工作台</div>
+        <nav class="nav">
+            <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+                <Icon Name="home" /> <span>首页</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/projects" Match="NavLinkMatch.Prefix">
+                <Icon Name="folder" /> <span>项目</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/tasks">
+                <Icon Name="list" /> <span>任务</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/calendar">
+                <Icon Name="calendar" /> <span>日历</span>
+            </NavLink>
+        </nav>
+
+        <div class="nav-group-label">日常</div>
+        <nav class="nav">
+            <NavLink class="nav-item" href="/routines">
+                <Icon Name="repeat" /> <span>日常提醒</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/drafts">
+                <Icon Name="file" /> <span>草稿箱</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/trash">
+                <Icon Name="trash" /> <span>回收站</span>
+            </NavLink>
+        </nav>
+
+        <div class="sidebar-spacer"></div>
+
+        <div class="sidebar-note">
+            <div class="sidebar-note-icon"><Icon Name="spark" Size="16" /></div>
+            <div>
+                <strong>按自己的节奏</strong>
+                <p>把大目标拆成小迭代，今天只做今天的事。</p>
+            </div>
+        </div>
+
+        <div class="sidebar-foot">
+            <div class="avatar">S</div>
+            <div class="sidebar-foot-copy">
+                <strong>本地工作区</strong>
+                <small>数据只在这台电脑</small>
+            </div>
+            <button class="icon-btn" title="新建任务" @onclick="() => Ui.OpenTask()"><Icon Name="plus" Size="16" /></button>
+        </div>
+        <div class="sidebar-actions">
+            <button class="sidebar-exit" @onclick="RequestExit">@(_confirmExit ? "再次点击，确认退出" : "退出应用")</button>
+            <button class="sidebar-utility" title="设置" @onclick="() => Ui.OpenSettings()">
+                <Icon Name="settings" Size="14" />
+            </button>
+        </div>
+    </aside>
+
+    <div class="main-column">
+        <header class="topbar">
+            <div class="topbar-title">
+                <span class="eyebrow">@TodayLabel</span>
+                <h1>@PageTitle</h1>
+                @if (!string.IsNullOrEmpty(PageDescription))
+                {
+                    <p class="topbar-desc">@PageDescription</p>
+                }
+            </div>
+
+            <div class="topbar-actions">
+                <label class="search-box">
+                    <Icon Name="search" Size="16" />
+                    <input type="search" placeholder="搜索任务、Bug、调研…" @bind="_search" @bind:event="oninput"
+                           @onkeydown="OnSearchKeyDown" />
+                    @if (_search.Length > 0 || IsSearching)
+                    {
+                        <button class="search-clear" type="button" title="清除搜索" @onclick="ClearSearch">
+                            <Icon Name="x" Size="13" />
+                        </button>
+                    }
+                    else
+                    {
+                        <kbd>↵</kbd>
+                    }
+                </label>
+                @if (IsProjectsPage)
+                {
+                    <button class="btn btn-ghost" @onclick="() => Ui.OpenProject()">
+                        <Icon Name="plus" Size="16" /> 新建项目
+                    </button>
+                }
+                <button class="btn btn-primary" @onclick="() => Ui.OpenTask()">
+                    <Icon Name="plus" Size="16" /> 新建任务
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+            @Body
+        </main>
+    </div>
+</div>
+
+@if (Ui.TaskDetailOpen)
+{
+    <TaskDetailDialog />
+}
+@if (Ui.TaskPostponeOpen)
+{
+    <TaskPostponeDialog />
+}
+@if (Ui.TaskEditorOpen)
+{
+    <TaskEditor />
+}
+@if (Ui.CompleteTaskOpen)
+{
+    <CompleteTaskDialog />
+}
+@if (Ui.ProjectEditorOpen)
+{
+    <ProjectEditor />
+}
+@if (Ui.IterationEditorOpen)
+{
+    <IterationEditor />
+}
+@if (Ui.RoutineEditorOpen)
+{
+    <RoutineEditor />
+}
+@if (Ui.EventEditorOpen)
+{
+    <EventEditor />
+}
+@if (Ui.SettingsOpen)
+{
+    <SettingsDialog />
+}
+
+<ToastHost />
+
+@code {
+    [Inject]
+    private PlannerUi Ui { get; set; } = default!;
+
+    [Inject]
+    private NavigationManager Nav { get; set; } = default!;
+
+    [Inject]
+    private IAppLifecycle Lifecycle { get; set; } = default!;
+
+    [Inject]
+    private ThemeService Theme { get; set; } = default!;
+
+    private string _search = string.Empty;
+    private bool _confirmExit;
+
+    private void RequestExit()
+    {
+        if (_confirmExit)
+        {
+            Lifecycle.Exit();
+            return;
+        }
+
+        _confirmExit = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(3000);
+            _confirmExit = false;
+            StateHasChanged();
+        });
+    }
+
+    private bool IsProjectsPage =>
+        Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/') == "projects";
+
+    private string TodayLabel => DateTime.Now.ToString("yyyy年M月d日 · dddd", CultureInfo.GetCultureInfo("zh-CN"));
+
+    private string PageTitle => (Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0]) switch
+    {
+        "" or "home" => "今天",
+        var path when path.StartsWith("projects", StringComparison.Ordinal) => "项目",
+        "tasks" => "全部任务",
+        "calendar" => "日历",
+        "routines" => "日常提醒",
+        "drafts" => "草稿箱",
+        "trash" => "回收站",
+        _ => "事序",
+    };
+
+    private string PageDescription => (Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0]) switch
+    {
+        "" or "home" => "今天要推进的事，按节奏来。",
+        var path when path.StartsWith("projects/", StringComparison.Ordinal) => "项目下的迭代与任务，按层级收拢。",
+        "projects" => "一个项目一条线，大迭代往下拆，任务才有落点。",
+        "tasks" => "任务、Bug、调研、杂事都在这里。按项目或迭代收拢。",
+        "calendar" => "任务有截止点，日程有起止，假期和周末也标出来。",
+        "routines" => "喝水、吃药、起身走动。设好时间，剩下的交给提醒。",
+        "drafts" => "AI 和会议里捞出来的草稿，确认后才正式入库。",
+        "trash" => "删掉的东西在这里放 7 天，随时可以捡回来。",
+        _ => string.Empty,
+    };
+
+    private bool IsSearching
+    {
+        get
+        {
+            var relative = Nav.ToBaseRelativePath(Nav.Uri);
+            var queryIndex = relative.IndexOf('?');
+            if (queryIndex < 0 || !relative.StartsWith("tasks", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return relative[(queryIndex + 1)..]
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Any(p => p.StartsWith("q=", StringComparison.Ordinal) && p.Length > 2);
+        }
+    }
+
+    private void ClearSearch()
+    {
+        _search = string.Empty;
+        if (IsSearching)
+        {
+            Nav.NavigateTo("/tasks");
+        }
+    }
+
+    protected override void OnInitialized() => Ui.Changed += OnUiChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Theme.InitializeAsync();
+        }
+    }
+
+    private void OnUiChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Ui.Changed -= OnUiChanged;
+
+    private void OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            ClearSearch();
+            return;
+        }
+
+        if (e.Key is not ("Enter" or "NumpadEnter"))
+        {
+            return;
+        }
+
+        var value = _search.Trim();
+        if (value.Length == 0)
+        {
+            ClearSearch();
+            return;
+        }
+
+        Nav.NavigateTo($"/tasks?q={Uri.EscapeDataString(value)}");
+    }
+}

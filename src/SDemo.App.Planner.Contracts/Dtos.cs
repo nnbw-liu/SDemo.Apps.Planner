@@ -20,9 +20,34 @@ public sealed record TodoDto
 
     public DateTimeOffset? CompletedAt { get; init; }
 
+    /// <summary>完成/验收说明；完成弹窗里填写，可后续补充。</summary>
+    public string? CompletionNote { get; init; }
+
+    /// <summary>完成后的产物：文件路径、链接、提交号等，一行一个。</summary>
+    public IReadOnlyList<string> Artifacts { get; init; } = [];
+
     public string? ListId { get; init; }
 
     public string? ListName { get; init; }
+
+    /// <summary>所属项目；旧数据可能为空（未归属）。</summary>
+    public string? ProjectId { get; init; }
+
+    public string? ProjectName { get; init; }
+
+    public string? ProjectColor { get; init; }
+
+    /// <summary>所属迭代（大/小均可）；为空表示只挂在项目下。</summary>
+    public string? IterationId { get; init; }
+
+    public string? IterationName { get; init; }
+
+    public WorkItemKind Kind { get; init; } = WorkItemKind.Task;
+
+    /// <summary>子任务父 id；为空表示顶层条目。</summary>
+    public string? ParentTodoId { get; init; }
+
+    public int Sort { get; init; }
 
     /// <summary>乐观并发版本；每次写 +1。删除也占用一个版本。</summary>
     public int Revision { get; init; }

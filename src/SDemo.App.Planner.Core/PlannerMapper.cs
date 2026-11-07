@@ -1,3 +1,4 @@
+using System.Globalization;
 using SDemo.App.Planner.Contracts;
 using SDemo.App.Planner.Storage;
 
@@ -10,7 +11,10 @@ public static class PlannerMapper
         TodoRow row,
         IReadOnlyList<string> tags,
         IReadOnlyList<string> links,
-        string? listName = null) =>
+        string? listName = null,
+        string? projectName = null,
+        string? projectColor = null,
+        string? iterationName = null) =>
         new()
         {
             Id = row.Id,
@@ -20,8 +24,18 @@ public static class PlannerMapper
             Priority = row.Priority,
             DueAt = ToDto(row.DueAt),
             CompletedAt = ToDto(row.CompletedAt),
+            CompletionNote = row.CompletionNote,
+            Artifacts = ParseArtifacts(row.ArtifactsJson),
             ListId = row.ListId,
             ListName = listName,
+            ProjectId = row.ProjectId,
+            ProjectName = projectName,
+            ProjectColor = projectColor,
+            IterationId = row.IterationId,
+            IterationName = iterationName,
+            Kind = ParseKind(row.Kind),
+            ParentTodoId = row.ParentTodoId,
+            Sort = row.Sort,
             Revision = row.Revision,
             Source = ParseSource(row.Source),
             SourceSessionId = row.SourceSessionId,
@@ -34,8 +48,78 @@ public static class PlannerMapper
             RestorableUntil = ToDto(row.RestorableUntil),
         };
 
-    public static EventDto ToEvent(EventRow row, IReadOnlyList<string> links, IReadOnlyList<string>? participants = null) =>
-        new()
+    public static ProjectDto ToProject(ProjectRow row, IReadOnlyList<IterationDto> iterations) => new()
+    {
+        Id = row.Id,
+        Name = row.Name,
+        Description = row.Description,
+        Color = row.Color,
+        Status = ParseProjectStatus(row.Status),
+        StartAt = ToDto(row.StartAt),
+        TargetAt = ToDto(row.TargetAt),
+        Sort = row.Sort,
+        Revision = row.Revision,
+        Iterations = iterations,
+        CreatedAt = ToDto(row.CreatedAt)!.Value,
+        UpdatedAt = ToDto(row.UpdatedAt)!.Value,
+    };
+
+    public static IterationDto ToIteration(
+        IterationRow row,
+        string? projectName = null,
+        string? projectColor = null,
+        string? parentName = null) => new()
+    {
+        Id = row.Id,
+        ProjectId = row.ProjectId,
+        ProjectName = projectName,
+        ProjectColor = projectColor,
+        ParentId = row.ParentId,
+        ParentName = parentName,
+        Level = row.Level == "small" ? IterationLevel.Small : IterationLevel.Big,
+        Name = row.Name,
+        Goal = row.Goal,
+        Status = ParseIterationStatus(row.Status),
+        StartAt = ToDto(row.StartAt),
+        EndAt = ToDto(row.EndAt),
+        CompletedAt = ToDto(row.CompletedAt),
+        CompletionNote = row.CompletionNote,
+        Sort = row.Sort,
+        Revision = row.Revision,
+        CreatedAt = ToDto(row.CreatedAt)!.Value,
+        UpdatedAt = ToDto(row.UpdatedAt)!.Value,
+    };
+
+    public static RoutineDto ToRoutine(RoutineRow row, int todayCount = 0) => new()
+    {
+        Id = row.Id,
+        Title = row.Title,
+        Emoji = row.Emoji,
+        Notes = row.Notes,
+        DaysMask = row.DaysMask,
+        TimeOfDay = row.TimeOfDay,
+        IntervalMinutes = row.IntervalMinutes,
+        ActiveEnd = row.ActiveEnd,
+        TargetCount = row.TargetCount,
+        Remind = row.Remind,
+        Enabled = row.Enabled,
+        Sort = row.Sort,
+        Revision = row.Revision,
+        TodayCount = todayCount,
+        CreatedAt = ToDto(row.CreatedAt)!.Value,
+        UpdatedAt = ToDto(row.UpdatedAt)!.Value,
+    };
+
+    public static HolidayDto ToHoliday(HolidayRow row) => new()
+    {
+        Date = DateOnly.ParseExact(row.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+        Name = row.Name,
+        IsWorkday = row.IsWorkday,
+        Source = row.Source,
+        UpdatedAt = ToDto(row.UpdatedAt)!.Value,
+    };
+
+    public static EventDto ToEvent(EventRow row, IReadOnlyList<string> links, IReadOnlyList<string>? participants = null) =>        new()
         {
             Id = row.Id,
             Title = row.Title,
@@ -123,6 +207,9 @@ public static class PlannerMapper
     {
         "doing" => TodoStatus.Doing,
         "done" => TodoStatus.Done,
+        "verified" => TodoStatus.Verified,
+        "closed" => TodoStatus.Closed,
+        "canceled" => TodoStatus.Canceled,
         _ => TodoStatus.Open,
     };
 
@@ -130,8 +217,72 @@ public static class PlannerMapper
     {
         TodoStatus.Doing => "doing",
         TodoStatus.Done => "done",
+        TodoStatus.Verified => "verified",
+        TodoStatus.Closed => "closed",
+        TodoStatus.Canceled => "canceled",
         _ => "open",
     };
+
+    public static IReadOnlyList<string> ParseArtifacts(string? json) => ParseParticipants(json);
+
+    public static string? SerializeArtifacts(IReadOnlyList<string>? artifacts)
+    {
+        var values = artifacts?.Select(x => x.Trim())
+            .Where(x => x.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList() ?? [];
+        return values.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(values, PlannerJson.Wire);
+    }
+
+    public static WorkItemKind ParseKind(string? value) => value switch
+    {
+        "bug" => WorkItemKind.Bug,
+        "research" => WorkItemKind.Research,
+        "chore" => WorkItemKind.Chore,
+        _ => WorkItemKind.Task,
+    };
+
+    public static string ToStorage(WorkItemKind kind) => kind switch
+    {
+        WorkItemKind.Bug => "bug",
+        WorkItemKind.Research => "research",
+        WorkItemKind.Chore => "chore",
+        _ => "task",
+    };
+
+    public static ProjectStatus ParseProjectStatus(string? value) => value switch
+    {
+        "paused" => ProjectStatus.Paused,
+        "done" => ProjectStatus.Done,
+        "archived" => ProjectStatus.Archived,
+        _ => ProjectStatus.Active,
+    };
+
+    public static string ToStorage(ProjectStatus status) => status switch
+    {
+        ProjectStatus.Paused => "paused",
+        ProjectStatus.Done => "done",
+        ProjectStatus.Archived => "archived",
+        _ => "active",
+    };
+
+    public static IterationStatus ParseIterationStatus(string? value) => value switch
+    {
+        "active" => IterationStatus.Active,
+        "done" => IterationStatus.Done,
+        "archived" => IterationStatus.Archived,
+        _ => IterationStatus.Planned,
+    };
+
+    public static string ToStorage(IterationStatus status) => status switch
+    {
+        IterationStatus.Active => "active",
+        IterationStatus.Done => "done",
+        IterationStatus.Archived => "archived",
+        _ => "planned",
+    };
+
+    public static string ToStorage(IterationLevel level) => level == IterationLevel.Small ? "small" : "big";
 
     public static TodoSource ParseSource(string? value) => value switch
     {

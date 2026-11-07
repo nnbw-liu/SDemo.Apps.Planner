@@ -7,6 +7,7 @@
       "src\\SDemo.App.Planner.Core\\SDemo.App.Planner.Core.csproj",
       "src\\SDemo.App.Planner.Mcp\\SDemo.App.Planner.Mcp.csproj",
       "src\\SDemo.App.Planner.Host\\SDemo.App.Planner.Host.csproj",
+      "src\\SDemo.App.Planner.Web\\SDemo.App.Planner.Web.csproj",
       "tests\\SDemo.Planner.Tests\\SDemo.Planner.Tests.csproj"
     ]
   }

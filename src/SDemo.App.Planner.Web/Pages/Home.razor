@@ -1,0 +1,414 @@
+@page "/"
+@page "/home"
+@inherits PlannerPageBase
+@inject NavigationManager Nav
+
+<PageTitle>今天 · 事序</PageTitle>
+
+@if (_home is null)
+{
+    <div class="loading-card">正在打开你的工作区…</div>
+}
+else
+{
+    <section class="home-hero">
+        <div class="hero-copy">
+            <span class="eyebrow">@Greeting · @DateLabel</span>
+            <h2>把今天过好，<br />就已经在推进项目。</h2>
+            <p>@HeroLine</p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" @onclick="() => Ui.OpenTask()">
+                    <Icon Name="plus" Size="16" /> 记一件事
+                </button>
+                <a class="btn btn-ghost" href="/projects">查看项目 <Icon Name="arrow-right" Size="15" /></a>
+            </div>
+        </div>
+
+        <div class="hero-side">
+            <div class="hero-ring" style="--progress:@(RoutinePercent * 3.6)deg">
+                <div class="hero-ring-inner">
+                    <strong>@_home.RoutineDone<span>/@_home.RoutineTotal</span></strong>
+                    <small>今日日常</small>
+                </div>
+            </div>
+            <div class="hero-focus">
+                <span>今日焦点</span>
+                <strong>@(_home.DueToday.Count + _home.Overdue.Count) 件事</strong>
+                <small>@(_home.Overdue.Count > 0 ? $"其中 {_home.Overdue.Count} 件已逾期" : "没有逾期，节奏不错")</small>
+            </div>
+        </div>
+    </section>
+
+    <div class="home-grid">
+        <section class="card routines-card">
+            <header class="card-head">
+                <div>
+                    <span class="eyebrow">Daily</span>
+                    <h3>今天的日常</h3>
+                </div>
+                <div class="card-head-actions">
+                    <span class="muted">@_home.RoutineDone/@_home.RoutineTotal 完成</span>
+                    <button class="icon-btn" title="新建日常" @onclick="() => Ui.OpenRoutine()"><Icon Name="plus" Size="16" /></button>
+                </div>
+            </header>
+
+            @if (_home.Routines.Count == 0)
+            {
+                <div class="empty-inline">
+                    <span class="empty-emoji">🌿</span>
+                    <div>
+                        <strong>还没有日常</strong>
+                        <p>喝水、吃药、起身走动——把需要每天记得的事放进来。</p>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenRoutine()">添加日常</button>
+                </div>
+            }
+            else
+            {
+                <div class="routine-list">
+                    @foreach (var routine in _home.Routines)
+                    {
+                        <div class="routine-row @(routine.DoneToday ? "is-done" : "")" @key="routine.Id">
+                            <button class="routine-emoji" title="编辑" @onclick="() => Ui.OpenRoutine(routine)">@routine.Emoji</button>
+                            <div class="routine-main">
+                                <div class="routine-title-line">
+                                    <strong>@routine.Title</strong>
+                                    @if (routine.DoneToday)
+                                    {
+                                        <span class="done-chip"><Icon Name="check" Size="12" /> 完成</span>
+                                    }
+                                </div>
+                                <div class="routine-meta">
+                                    <span>@RoutineSchedule(routine)</span>
+                                    @if (routine.TargetCount > 1)
+                                    {
+                                        <span>· @routine.TodayCount/@routine.TargetCount</span>
+                                    }
+                                </div>
+                                @if (routine.TargetCount > 1)
+                                {
+                                    <div class="mini-progress"><span style="width:@(routine.Progress * 100)%"></span></div>
+                                }
+                            </div>
+                            <div class="routine-actions">
+                                @if (routine.TodayCount > 0)
+                                {
+                                    <button class="icon-btn" title="撤销一次" @onclick="() => Check(routine, -1)">−</button>
+                                }
+                                <button class="routine-check @(routine.DoneToday ? "checked" : "")"
+                                        title="打卡" @onclick="() => Check(routine, 1)">
+                                    <Icon Name="check" Size="14" />
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="card focus-card">
+            <header class="card-head">
+                <div>
+                    <span class="eyebrow">Focus</span>
+                    <h3>今天的状态</h3>
+                </div>
+                <a class="text-link" href="/tasks">全部任务 <Icon Name="arrow-right" Size="13" /></a>
+            </header>
+            <div class="stat-grid">
+                <div class="stat">
+                    <strong>@_home.Stats.OpenTotal</strong>
+                    <span>待完成</span>
+                </div>
+                <div class="stat">
+                    <strong>@_home.Stats.DueToday</strong>
+                    <span>今天到期</span>
+                </div>
+                <div class="stat @(_home.Stats.Overdue > 0 ? "stat-danger" : "")">
+                    <strong>@_home.Stats.Overdue</strong>
+                    <span>已逾期</span>
+                </div>
+                <div class="stat">
+                    <strong>@_home.Stats.DoneLast7Days</strong>
+                    <span>近 7 天完成</span>
+                </div>
+            </div>
+            <div class="focus-meter">
+                <div class="focus-meter-head">
+                    <span>近 7 天完成率</span>
+                    <strong>@_home.Stats.CompletionRateLast7Days.ToString("P0")</strong>
+                </div>
+                <div class="mini-progress tall"><span style="width:@(_home.Stats.CompletionRateLast7Days * 100)%"></span></div>
+                <p class="muted">不是效率考核，只是让你看见自己已经走了多远。</p>
+            </div>
+        </section>
+    </div>
+
+    <section class="section-block">
+        <header class="section-head">
+            <div>
+                <span class="eyebrow">Roadmap</span>
+                <h3>正在进行的迭代</h3>
+            </div>
+            <a class="text-link" href="/projects">管理项目 <Icon Name="arrow-right" Size="13" /></a>
+        </header>
+
+        @if (HomeIterations.Count == 0)
+        {
+            <div class="empty-panel">
+                <div class="empty-emoji">🗂️</div>
+                <h4>还没有进行中的迭代</h4>
+                <p>先建一个项目，再拆出大迭代和小迭代。计划不用很完美，能往前走就行。</p>
+                <button class="btn btn-primary" @onclick="() => Ui.OpenProject()">新建项目</button>
+            </div>
+        }
+        else
+        {
+            <div class="iteration-strip">
+                @foreach (var iteration in HomeIterations)
+                {
+                    var subs = SubIterations(iteration);
+                    <a class="iteration-card" href="/projects/@iteration.ProjectId" @key="iteration.Id">
+                        <div class="iteration-top">
+                            <span class="project-dot" style="--dot:@(iteration.ProjectColor ?? "#4C8DFF")"></span>
+                            <span class="iteration-project">@iteration.ProjectName</span>
+                            <span class="level-chip">@(iteration.Level == IterationLevel.Big ? "大迭代" : "小迭代")</span>
+                        </div>
+                        <h4>@iteration.Name</h4>
+                        @if (!string.IsNullOrEmpty(iteration.Goal))
+                        {
+                            <p class="iteration-goal">@iteration.Goal</p>
+                        }
+                        <div class="iteration-progress">
+                            <div class="mini-progress"><span style="width:@iteration.Progress%"></span></div>
+                            <span>@iteration.Progress.ToString("F0")%</span>
+                        </div>
+                        @if (subs.Count > 0)
+                        {
+                            <div class="iteration-subs">
+                                @foreach (var sub in subs)
+                                {
+                                    <span class="sub-chip">@sub.Name <b>@sub.Progress.ToString("F0")%</b></span>
+                                }
+                            </div>
+                        }
+                        <div class="iteration-foot">
+                            <span>@iteration.DoneTasks/@iteration.TotalTasks 任务</span>
+                            <span>@IterationWindow(iteration)</span>
+                        </div>
+                    </a>
+                }
+            </div>
+        }
+    </section>
+
+    <div class="home-grid lower">
+        <section class="card">
+            <header class="card-head">
+                <div>
+                    <span class="eyebrow">Next 7 days</span>
+                    <h3>接下来</h3>
+                </div>
+                <a class="text-link" href="/calendar">日历 <Icon Name="arrow-right" Size="13" /></a>
+            </header>
+            @if (_home.Upcoming.Count == 0 && _home.DueToday.Count == 0 && _home.Overdue.Count == 0)
+            {
+                <div class="empty-inline">
+                    <span class="empty-emoji">☕</span>
+                    <div>
+                        <strong>接下来是空的</strong>
+                        <p>没有排期的任务。可以留白，也可以记下明天要做的事。</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="agenda">
+                    @if (_home.Overdue.Count > 0)
+                    {
+                        <div class="agenda-group">
+                            <div class="agenda-date overdue"><span>逾期</span><small>@_home.Overdue.Count 件</small></div>
+                            @foreach (var todo in _home.Overdue.Take(3))
+                            {
+                                <TaskRow Todo="todo" ShowProject="true" />
+                            }
+                        </div>
+                    }
+                    @if (_home.DueToday.Count > 0)
+                    {
+                        <div class="agenda-group">
+                            <div class="agenda-date"><span>今天</span><small>@DateTime.Now.ToString("M月d日")</small></div>
+                            @foreach (var todo in _home.DueToday)
+                            {
+                                <TaskRow Todo="todo" ShowProject="true" />
+                            }
+                        </div>
+                    }
+                    @foreach (var group in UpcomingGroups)
+                    {
+                        <div class="agenda-group">
+                            <div class="agenda-date"><span>@group.Label</span><small>@group.Date.ToString("M月d日")</small></div>
+                            @foreach (var todo in group.Items)
+                            {
+                                <TaskRow Todo="todo" ShowProject="true" />
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="card">
+            <header class="card-head">
+                <div>
+                    <span class="eyebrow">Projects</span>
+                    <h3>项目</h3>
+                </div>
+                <button class="icon-btn" title="新建项目" @onclick="() => Ui.OpenProject()"><Icon Name="plus" Size="16" /></button>
+            </header>
+            @if (_home.Projects.Count == 0)
+            {
+                <div class="empty-inline">
+                    <span class="empty-emoji">📁</span>
+                    <div>
+                        <strong>从一个项目开始</strong>
+                        <p>项目下面再放大迭代、小迭代和任务。</p>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenProject()">新建</button>
+                </div>
+            }
+            else
+            {
+                <div class="project-mini-list">
+                    @foreach (var project in _home.Projects.Take(5))
+                    {
+                        <a class="project-mini" href="/projects/@project.Id" @key="project.Id">
+                            <span class="project-color" style="--dot:@project.Color"></span>
+                            <div class="project-mini-main">
+                                <strong>@project.Name</strong>
+                                <small>@project.OpenTasks 个待办 · @project.Iterations.Count 个迭代</small>
+                            </div>
+                            <span class="project-mini-progress">@project.Progress.ToString("F0")%</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private HomeSnapshotDto? _home;
+
+    private string Greeting => DateTime.Now.Hour switch
+    {
+        < 6 => "夜深了",
+        < 11 => "早上好",
+        < 14 => "中午好",
+        < 18 => "下午好",
+        _ => "晚上好",
+    };
+
+    private string DateLabel => DateTime.Now.ToString("M月d日 dddd", CultureInfo.GetCultureInfo("zh-CN"));
+
+    private string HeroLine
+    {
+        get
+        {
+            if (_home is null)
+            {
+                return string.Empty;
+            }
+
+            if (_home.Overdue.Count > 0)
+            {
+                return $"有 {_home.Overdue.Count} 件事已经逾期。先挑最小的一件，把它往前推一点。";
+            }
+
+            if (_home.DueToday.Count > 0)
+            {
+                return $"今天有 {_home.DueToday.Count} 件事到期，专注完成一两件就很好。";
+            }
+
+            return "今天没有硬性截止。适合推进迭代，或者给日常留一点空间。";
+        }
+    }
+
+    private double RoutinePercent => _home is null || _home.RoutineTotal == 0
+        ? 0
+        : _home.RoutineDone * 100.0 / _home.RoutineTotal;
+
+    protected override void Reload() => _home = Service.Home();
+
+    private IReadOnlyList<IterationDto> HomeIterations
+    {
+        get
+        {
+            if (_home is null)
+            {
+                return [];
+            }
+
+            var big = _home.ActiveIterations
+                .Where(i => i.Level == IterationLevel.Big)
+                .ToList();
+            return big.Count > 0 ? big : _home.ActiveIterations;
+        }
+    }
+
+    private IReadOnlyList<IterationDto> SubIterations(IterationDto big) =>
+        _home?.ActiveIterations
+            .Where(i => i.Level == IterationLevel.Small && i.ParentId == big.Id)
+            .OrderBy(i => i.Sort)
+            .ThenBy(i => i.Name)
+            .ToList() ?? [];
+
+    private IEnumerable<AgendaGroup> UpcomingGroups =>
+        _home is null
+            ? []
+            : _home.Upcoming
+                .GroupBy(t => t.DueAt!.Value.ToLocalTime().Date)
+                .OrderBy(g => g.Key)
+                .Select(g => new AgendaGroup(
+                    g.Key,
+                    g.Key == DateTime.Today.AddDays(1) ? "明天" : g.Key.ToString("dddd", CultureInfo.GetCultureInfo("zh-CN")),
+                    g.OrderBy(t => t.DueAt).ToList()));
+
+    private void Check(RoutineDto routine, int delta)
+    {
+        Service.CheckRoutine(routine.Id, delta);
+        if (delta > 0)
+        {
+            Ui.Toast(routine.DoneToday ? $"「{routine.Title}」今天完成了" : "打卡 +1");
+        }
+    }
+
+    private static string RoutineSchedule(RoutineDto routine)
+    {
+        if (routine.IntervalMinutes is > 0)
+        {
+            return $"{routine.TimeOfDay}–{routine.ActiveEnd} · 每 {routine.IntervalMinutes} 分钟";
+        }
+
+        return routine.TimeOfDay is null ? "随时" : routine.TimeOfDay;
+    }
+
+    private static string IterationWindow(IterationDto iteration)
+    {
+        if (iteration.EndAt is null)
+        {
+            return "未设结束";
+        }
+
+        var end = iteration.EndAt.Value.ToLocalTime();
+        var days = (end.Date - DateTime.Today).Days;
+        return days switch
+        {
+            < 0 => "已超期",
+            0 => "今天结束",
+            <= 14 => $"还剩 {days} 天",
+            _ => "至 " + end.ToString("M月d日"),
+        };
+    }
+
+    private sealed record AgendaGroup(DateTime Date, string Label, IReadOnlyList<TodoDto> Items);
+}

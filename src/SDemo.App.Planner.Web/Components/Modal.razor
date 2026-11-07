@@ -1,0 +1,49 @@
+@* 统一的弹窗外壳：遮罩、标题、可滚动正文、固定底栏。 *@
+<div class="modal-backdrop" @onclick="OnBackdrop" @onkeydown="OnKeyDown" tabindex="-1">
+    <section class="modal @SizeClass" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+        <header class="modal-head">
+            <div>
+                <span class="eyebrow">@Eyebrow</span>
+                <h2>@Title</h2>
+            </div>
+            <button class="icon-btn" title="关闭" @onclick="OnClose"><Icon Name="x" Size="18" /></button>
+        </header>
+        <div class="modal-body">
+            @ChildContent
+        </div>
+        @if (Footer is not null)
+        {
+            <footer class="modal-foot">@Footer</footer>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Eyebrow { get; set; }
+
+    [Parameter]
+    public string? SizeClass { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Footer { get; set; }
+
+    private void OnBackdrop() => _ = OnClose.InvokeAsync();
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _ = OnClose.InvokeAsync();
+        }
+    }
+}

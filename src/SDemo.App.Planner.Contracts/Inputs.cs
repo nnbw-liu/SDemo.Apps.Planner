@@ -41,10 +41,23 @@ public sealed record WriteContext
 /// </summary>
 public sealed record TodoQuery
 {
-    /// <summary>open / doing / done / all。</summary>
+    /// <summary>
+    /// open/active = 未完成（新建+进行中）；new = 仅新建；doing / done / verified / closed / canceled；
+    /// all / deleted。
+    /// </summary>
     public string Status { get; init; } = "open";
 
     public string? ListId { get; init; }
+
+    public string? ProjectId { get; init; }
+
+    public string? IterationId { get; init; }
+
+    /// <summary>task / bug / research / chore；null 表示不过滤。</summary>
+    public WorkItemKind? Kind { get; init; }
+
+    /// <summary>为 true 时只返回未归属项目的条目。</summary>
+    public bool NoProject { get; init; }
 
     public DateTimeOffset? DueBefore { get; init; }
 
@@ -53,6 +66,9 @@ public sealed record TodoQuery
     public string? Tag { get; init; }
 
     public string? Q { get; init; }
+
+    /// <summary>排序方式；UI 默认按优先级，API 默认按截止时间。</summary>
+    public TodoSort Sort { get; init; } = TodoSort.Due;
 
     public int Limit { get; init; } = PlannerConstants.DefaultListLimit;
 
@@ -70,6 +86,14 @@ public sealed record TodoCreateInput
     public int Priority { get; init; } = 2;
 
     public string? ListId { get; init; }
+
+    public string? ProjectId { get; init; }
+
+    public string? IterationId { get; init; }
+
+    public WorkItemKind Kind { get; init; } = WorkItemKind.Task;
+
+    public string? ParentTodoId { get; init; }
 
     public IReadOnlyList<string>? Tags { get; init; }
 
@@ -97,13 +121,29 @@ public sealed record TodoPatch
 
     public string? ListId { get; init; }
 
+    public string? ProjectId { get; init; }
+
+    public bool ClearProject { get; init; }
+
+    public string? IterationId { get; init; }
+
+    public bool ClearIteration { get; init; }
+
+    public WorkItemKind? Kind { get; init; }
+
+    public string? ParentTodoId { get; init; }
+
+    public bool ClearParent { get; init; }
+
     public IReadOnlyList<string>? Tags { get; init; }
 
     public IReadOnlyList<string>? Links { get; init; }
 
     public bool IsNoOp =>
         Title is null && Notes is null && !ClearNotes && Status is null && Priority is null
-        && DueAt is null && !ClearDueAt && ListId is null && Tags is null && Links is null;
+        && DueAt is null && !ClearDueAt && ListId is null && Tags is null && Links is null
+        && ProjectId is null && !ClearProject && IterationId is null && !ClearIteration
+        && Kind is null && ParentTodoId is null && !ClearParent;
 }
 
 public sealed record EventCreateInput
