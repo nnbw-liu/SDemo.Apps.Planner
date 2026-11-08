@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "sdemo.planner",
   "name": "事序",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "executable": "payload\\SDemo.Planner.exe",
   "arguments": [],
   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",

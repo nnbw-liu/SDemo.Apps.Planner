@@ -138,6 +138,7 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.Property(x => x.TimeOfDay).HasColumnName("time_of_day").HasMaxLength(5);
             entity.Property(x => x.IntervalMinutes).HasColumnName("interval_minutes");
             entity.Property(x => x.ActiveEnd).HasColumnName("active_end").HasMaxLength(5);
+            entity.Property(x => x.OnceAt).HasColumnName("once_at").HasConversion(UtcConverter);
             entity.Property(x => x.TargetCount).HasColumnName("target_count");
             entity.Property(x => x.Remind).HasColumnName("remind");
             entity.Property(x => x.Enabled).HasColumnName("enabled");

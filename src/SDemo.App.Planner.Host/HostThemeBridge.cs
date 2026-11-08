@@ -22,6 +22,7 @@ internal sealed class HostThemeBridge : IThemeHost
             }
 
             TrayIcon.Current?.ApplyTheme(dark);
+            ReminderToastWindow.SetTheme(dark);
         });
     }
 }

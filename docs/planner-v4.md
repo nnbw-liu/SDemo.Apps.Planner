@@ -193,3 +193,54 @@
 
 - `dotnet build SDemo.Planner.slnf -c Release`：0 警告 0 错误；`dotnet test`：49/49 通过。
 - 实机（150% DPI）：浅色选中项清晰；项目详情顶栏新建任务项目预填 `dynabookAssistant`；任意页面「新建日常」都能打开编辑器；任务栏溢出里右键托盘菜单，浅色/深色各截一次，标题无 hover 高亮、两个菜单项配色与主界面一致。
+
+## 10. v4.5 日常仅一次提醒与任务操作记录（2026-11-07）
+
+### 浅色主题重复日
+
+- 新建/编辑日常的重复日 `.day-pill.active` 原先把 `rgba(109,141,255,.65)` 和 `#cdd8ff` 写死，浅色主题下变成浅蓝底 + 浅蓝白字，几乎不可读。
+- 改为主题 token：`border-color: var(--accent)`、`background: var(--accent-soft)`、`color: var(--text)`，并加 `font-weight: 600` 保持选中感；深色主题视觉不变。
+
+### 日常「仅一次」提醒
+
+- `RoutineDto` / `RoutineInput` / `RoutinePatch` 新增 `OnceAt`（UTC，`DateTimeOffset?`）；`RoutinePatch` 另有 `ClearOnceAt`。`RoutineDto.IsOneTime` 便于 UI 判断。
+- `routine` 表新增 `once_at`（migration `20261107144346_AddRoutineOnceAt`，nullable TEXT，UTC 存储）。
+- 保存时 `NormalizeRoutine` 把 `OnceAt` 转成本地日期/时分，只保留该日期对应的 `DaysMask` 位，清空 `IntervalMinutes`/`ActiveEnd`，`TargetCount` 固定 1，`TimeOfDay` 写成该时分，便于列表与旧逻辑展示。
+- 今日列表只显示 `Enabled` 的日常；仅一次日常按本地日期匹配。每周打卡统计排除仅一次日常。
+- `CollectDueReminders` 对仅一次日常：只在本地日期当天、时间点后 30 分钟内提醒一次，消息为「仅一次提醒」；触发后写 `last_fired_at` 并自动 `Enabled=false`，不会次日重复。
+- 编辑器提醒方式改为三段：每天固定时间 / 每隔一段时间 / 仅一次。仅一次显示日期 + 时间，并有「只在指定日期的这个时间提醒一次，到点后自动停用，也不计入每周打卡统计」提示；保存时拒绝早于当前时间的仅一次提醒。
+- 日常页/首页的日程文案对仅一次显示 `M月d日 HH:mm`；已触发停用追加「已提醒」，提前手动停用追加「已停用」。
+
+### 任务操作记录
+
+- 不新增表：直接回放既有 `op_log`。`PlannerStore.QueryOpLogs(entityType, entityId, limit)` 按时间倒序读取，`limit` clamp 1–500。
+- 新增 `TodoHistoryEntryDto` / `TodoChangeDto`；`PlannerService.ListTodoHistory(todoId, limit=100)` 反序列化 before/after 的 `TodoRow` 快照，生成中文动作与字段差异。
+- 记录范围覆盖创建、修改标题/说明/优先级/截止/项目/迭代/类型/完成说明/产物、状态变更、延期、重开、删除、恢复、彻底删除、批量修改、草稿入库；删除/恢复只显示动作与原因，不做整行字段 diff。
+- 任务详情弹窗新增「操作记录」段：每条显示动作、时间、操作者、原因和字段 `旧值 → 新值`；修改后重新打开详情即可看到。
+- 操作者映射：`manual` 本人操作、`ai` AI 草稿、`meeting` 会议来源、`import` 导入、`ics` ICS 同步、`system` 系统。
+
+### 验证
+
+- `dotnet build SDemo.Planner.slnf -c Release`：0 警告 0 错误。
+- `dotnet test ...`：52/52 通过；新增仅一次提醒（只在指定日触发并自动停用、不补小时级迟到）与任务操作记录（创建/改标题/调优先级/改状态/删除）测试。
+- 迁移：`dotnet ef migrations add AddRoutineOnceAt --project src\SDemo.App.Planner.Storage --startup-project src\SDemo.App.Planner.Storage`，生成 `20261107144346_AddRoutineOnceAt`；在临时库用 Release 程序集执行 `dotnet ef database update`，5 个迁移全部应用成功。
+
+## 11. v4.6 提醒卡主题与版本号（2026-11-07）
+
+### 提醒卡
+
+- `ReminderToastWindow` 是独立 WPF 窗口，拿不到 Blazor 的 CSS token，原先整张卡写死深色 `#181e2e`：浅色主题下与主界面割裂，深色下正文对比也偏灰。
+- 改为双主题调色：深色顶 `#1a2231` / 底 `#111722` / 正文 `#f3f6fc` / 次要 `#c2ccdc` / 强调 `#9bb0ff`；浅色顶 `#ffffff` / 底 `#f7f9fd` / 正文 `#162033` / 次要 `#53627a` / 强调 `#4f6ef7`。
+- 卡片加 38px 圆角图标座、标题/详情/分隔线；阴影在浅色下减淡，深色下保留层次但不再糊成一片。
+- `HostThemeBridge.Apply(dark)` 现在同步 `ReminderToastWindow.SetTheme(dark)`：新卡按当前主题创建；卡片显示期间切主题也会即时换色。
+- Host 启动时主题桥尚未初始化，`ReminderToastWindow` 先用注册表 `AppsUseLightTheme` 判断系统深浅，避免启动即到点的提醒用错主题；Web 初始化后以用户选择的主题为准。
+- 提醒文案去掉重复标题：卡片标题一行，详情行显示 `HH:mm · 到点/间隔/仅一次提醒`，有目标次数时显示 `第 N/M 次`。
+
+### 版本号
+
+- 统一版本号为 `0.4.1`：`Directory.Build.props`、Host csproj 的 `Version`/`FileVersion`、`PlannerConstants.AppVersion`、`deploy/app.json`。
+- 设置弹窗新增「关于」分组，显示 `当前版本 v0.4.1` 与宿主 API `1.0`。
+
+### 验证
+
+- `dotnet build SDemo.Planner.slnf -c Release`：0 警告 0 错误；`dotnet test ...`：52/52 通过。

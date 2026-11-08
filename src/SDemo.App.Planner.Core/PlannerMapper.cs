@@ -100,6 +100,7 @@ public static class PlannerMapper
         TimeOfDay = row.TimeOfDay,
         IntervalMinutes = row.IntervalMinutes,
         ActiveEnd = row.ActiveEnd,
+        OnceAt = ToDto(row.OnceAt),
         TargetCount = row.TargetCount,
         Remind = row.Remind,
         Enabled = row.Enabled,

@@ -189,6 +189,100 @@ public sealed class WorkspaceServiceTests
     }
 
     [Fact]
+    public void OnceReminder_FiresOnlyOnSelectedDay_ThenDisables()
+    {
+        using var host = new TestHost(new ZonedTimeProvider(Local(2026, 11, 6, 9), Zone)); // 周五
+        var routine = host.Service.CreateRoutine(
+            new RoutineInput { Title = "交燃气费", OnceAt = Local(2026, 11, 7, 10, 30) },
+            WriteContext.Manual());
+
+        Assert.NotNull(routine.OnceAt);
+        Assert.Equal("10:30", routine.TimeOfDay);
+        Assert.Equal(1, routine.TargetCount);
+        Assert.Null(routine.IntervalMinutes);
+        Assert.Equal(0b0100000, routine.DaysMask); // 周六，只用于展示
+
+        var saturday = new DateOnly(2026, 11, 7);
+        Assert.Empty(host.Service.ListRoutines(new DateOnly(2026, 11, 6)));
+        Assert.Single(host.Service.ListRoutines(saturday));
+
+        // 日期不对、时间没到都不触发。
+        Assert.Empty(host.Service.CollectDueReminders(Local(2026, 11, 6, 10, 30)));
+        Assert.Empty(host.Service.CollectDueReminders(Local(2026, 11, 7, 10, 29)));
+
+        var due = host.Service.CollectDueReminders(Local(2026, 11, 7, 10, 35));
+        Assert.Single(due);
+        Assert.Equal(routine.Id, due[0].RoutineId);
+        Assert.False(due[0].IsInterval);
+        Assert.Contains("仅一次", due[0].Message);
+
+        // 触发后自动停用，不再进入今日列表，也不会第二天重复。
+        Assert.False(host.Service.ListAllRoutines().Single().Enabled);
+        Assert.Empty(host.Service.ListRoutines(saturday));
+        Assert.Empty(host.Service.CollectDueReminders(Local(2026, 11, 7, 10, 40)));
+        Assert.Empty(host.Service.CollectDueReminders(Local(2026, 11, 8, 10, 30)));
+    }
+
+    [Fact]
+    public void OnceReminder_DoesNotCatchUpHoursLate()
+    {
+        using var host = new TestHost(new ZonedTimeProvider(Local(2026, 11, 6, 9), Zone));
+        host.Service.CreateRoutine(
+            new RoutineInput { Title = "取快递", OnceAt = Local(2026, 11, 6, 18, 0) },
+            WriteContext.Manual());
+
+        Assert.Empty(host.Service.CollectDueReminders(Local(2026, 11, 6, 18, 45)));
+        Assert.Single(host.Service.CollectDueReminders(Local(2026, 11, 6, 18, 20)));
+    }
+
+    [Fact]
+    public void TodoHistory_RecordsCreateUpdatePriorityStatusAndDelete()
+    {
+        using var host = new TestHost(new ZonedTimeProvider(Local(2026, 11, 7, 9), Zone));
+        var created = host.Service.CreateTodos(
+            [new TodoCreateInput { Title = "整理周报", Priority = 2 }],
+            WriteContext.Manual()).Items.Single();
+
+        var updated = host.Service.UpdateTodo(
+            created.Id,
+            created.Revision,
+            new TodoPatch { Title = "整理本周周报", Priority = 1, DueAt = Local(2026, 11, 8, 18) },
+            WriteContext.Manual()).Item;
+
+        var doing = host.Service.SetTodoStatus(
+            updated.Id,
+            updated.Revision,
+            TodoStatus.Doing,
+            null,
+            null,
+            WriteContext.Manual()).Item;
+
+        host.Service.DeleteTodo(doing.Id, doing.Revision, "合并到另一条", WriteContext.Manual());
+
+        var history = host.Service.ListTodoHistory(created.Id);
+        Assert.Equal(4, history.Count);
+        Assert.Equal("delete", history[0].Op);
+        Assert.Equal("删除任务", history[0].Action);
+        Assert.Equal("合并到另一条", history[0].Reason);
+        Assert.Equal("manual", history[0].Actor);
+
+        Assert.Equal("status", history[1].Op);
+        Assert.Contains("进行中", history[1].Action);
+        Assert.Contains(history[1].Changes, c => c.Field == "状态" && c.After == "进行中");
+
+        Assert.Equal("update", history[2].Op);
+        Assert.Contains(history[2].Changes, c => c.Field == "标题" && c.Before == "整理周报" && c.After == "整理本周周报");
+        Assert.Contains(history[2].Changes, c => c.Field == "优先级" && c.Before == "中" && c.After == "高");
+        Assert.Contains(history[2].Changes, c => c.Field == "截止时间" && c.After == "2026-11-08 18:00");
+
+        Assert.Equal("create", history[3].Op);
+        Assert.Contains(history[3].Changes, c => c.Field == "标题" && c.After == "整理周报");
+
+        // 删除后仍能按 id 回放历史，limit 生效。
+        Assert.Equal(2, host.Service.ListTodoHistory(created.Id, limit: 2).Count);
+    }
+
+    [Fact]
     public void HomeSnapshot_ContainsRoutinesDueTodayAndActiveIterations()
     {
         using var host = new TestHost(new ZonedTimeProvider(Local(2026, 11, 6, 9), Zone));

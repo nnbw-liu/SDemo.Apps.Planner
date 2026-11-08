@@ -23,7 +23,7 @@ public static class IcsExporter
         {
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
-            "PRODID:-//SDemo//Planner 0.1.0//ZH",
+            $"PRODID:-//SDemo//Planner {PlannerConstants.AppVersion}//ZH",
             "CALSCALE:GREGORIAN",
             "METHOD:PUBLISH",
             $"X-WR-CALNAME:{Escape(options.CalendarName ?? "SDemo 待办与日历")}",

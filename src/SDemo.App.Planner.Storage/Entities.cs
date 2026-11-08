@@ -153,6 +153,9 @@ public sealed class RoutineRow
     /// <summary>本地 HH:mm；间隔提醒的结束时间。</summary>
     public string? ActiveEnd { get; set; }
 
+    /// <summary>仅一次提醒的 UTC 时刻；非空时忽略重复日与间隔设置，触发后自动停用。</summary>
+    public DateTime? OnceAt { get; set; }
+
     public int TargetCount { get; set; } = 1;
 
     public bool Remind { get; set; } = true;

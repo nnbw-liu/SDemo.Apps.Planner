@@ -384,6 +384,12 @@ else
 
     private static string RoutineSchedule(RoutineDto routine)
     {
+        if (routine.OnceAt is { } onceAt)
+        {
+            var local = onceAt.ToLocalTime();
+            return local.ToString("M月d日 HH:mm", CultureInfo.InvariantCulture) + " · 仅一次";
+        }
+
         if (routine.IntervalMinutes is > 0)
         {
             return $"{routine.TimeOfDay}–{routine.ActiveEnd} · 每 {routine.IntervalMinutes} 分钟";

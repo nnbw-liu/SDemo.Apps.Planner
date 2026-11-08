@@ -180,6 +180,12 @@ public sealed record RoutineDto
     /// <summary>间隔提醒的结束时间（本地 HH:mm）。</summary>
     public string? ActiveEnd { get; init; }
 
+    /// <summary>仅一次提醒的时刻（UTC）；非空时忽略 daysMask/interval/activeEnd，触发后自动停用。</summary>
+    public DateTimeOffset? OnceAt { get; init; }
+
+    /// <summary>是否为「仅一次」提醒。</summary>
+    public bool IsOneTime => OnceAt is not null;
+
     /// <summary>每天目标次数；吃药/喝水通常为 1/8。</summary>
     public int TargetCount { get; init; } = 1;
 
@@ -420,6 +426,9 @@ public sealed record RoutineInput
 
     public string? ActiveEnd { get; init; }
 
+    /// <summary>仅一次提醒的时刻；有值时忽略重复日与间隔设置。</summary>
+    public DateTimeOffset? OnceAt { get; init; }
+
     public int TargetCount { get; init; } = 1;
 
     public bool Remind { get; init; } = true;
@@ -449,6 +458,12 @@ public sealed record RoutinePatch
 
     public bool ClearActiveEnd { get; init; }
 
+    /// <summary>设置为「仅一次」提醒的时刻；会自动清空 interval/activeEnd。</summary>
+    public DateTimeOffset? OnceAt { get; init; }
+
+    /// <summary>取消「仅一次」提醒，回到按重复日提醒。</summary>
+    public bool ClearOnceAt { get; init; }
+
     public int? TargetCount { get; init; }
 
     public bool? Remind { get; init; }
@@ -459,6 +474,6 @@ public sealed record RoutinePatch
 
     public bool IsNoOp => Title is null && Emoji is null && Notes is null && !ClearNotes
         && DaysMask is null && TimeOfDay is null && !ClearTimeOfDay && IntervalMinutes is null
-        && !ClearInterval && ActiveEnd is null && !ClearActiveEnd && TargetCount is null
-        && Remind is null && Enabled is null && Sort is null;
+        && !ClearInterval && ActiveEnd is null && !ClearActiveEnd && OnceAt is null && !ClearOnceAt
+        && TargetCount is null && Remind is null && Enabled is null && Sort is null;
 }

@@ -328,8 +328,8 @@ public sealed partial class PlannerStore
         return row.Count;
     }
 
-    /// <summary>提醒去重时间：内部状态，不参与乐观并发 revision。</summary>
-    public void MarkRoutineFired(string routineId, DateTime firedAtUtc)
+    /// <summary>提醒去重时间：内部状态，不参与乐观并发 revision；仅一次提醒触发后同时停用。</summary>
+    public void MarkRoutineFired(string routineId, DateTime firedAtUtc, bool disable = false)
     {
         using var db = Open();
         var row = db.Routines.FirstOrDefault(r => r.Id == routineId);
@@ -339,6 +339,13 @@ public sealed partial class PlannerStore
         }
 
         row.LastFiredAt = firedAtUtc;
+        if (disable)
+        {
+            row.Enabled = false;
+            row.UpdatedAt = firedAtUtc;
+            row.Revision++;
+        }
+
         db.SaveChanges();
     }
 

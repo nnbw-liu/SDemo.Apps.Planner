@@ -22,51 +22,74 @@
         </label>
 
         <div class="field field-full">
-            <span>重复日</span>
-            <div class="day-row">
-                @foreach (var (day, label) in DayOptions)
-                {
-                    <button type="button" class="day-pill @(RoutineDays.Includes(_daysMask, day) ? "active" : "")"
-                            @onclick="() => ToggleDay(day)">@label</button>
-                }
-                <button type="button" class="day-shortcut" @onclick="() => _daysMask = 127">每天</button>
-                <button type="button" class="day-shortcut" @onclick="() => _daysMask = 0b0011111">工作日</button>
-            </div>
-        </div>
-
-        <div class="field field-full">
             <span>提醒方式</span>
             <div class="segmented">
-                <button type="button" class="segment @(!_interval ? "active" : "")" @onclick="() => _interval = false">
+                <button type="button" class="segment @(_mode == ReminderMode.Fixed ? "active" : "")"
+                        @onclick="() => _mode = ReminderMode.Fixed">
                     每天固定时间
                 </button>
-                <button type="button" class="segment @(_interval ? "active" : "")" @onclick="() => _interval = true">
-                    每隔一段时间
+                <button type="button" class="segment @(_mode == ReminderMode.Interval ? "active" : "")"
+                        @onclick="() => _mode = ReminderMode.Interval">
+                    按间隔提醒
+                </button>
+                <button type="button" class="segment @(_mode == ReminderMode.Once ? "active" : "")"
+                        @onclick="() => _mode = ReminderMode.Once">
+                    仅一次
                 </button>
             </div>
         </div>
 
-        <label class="field">
-            <span>@(_interval ? "开始时间" : "提醒时间")</span>
-            <input class="input" type="time" value="@_timeOfDay" @onchange="e => _timeOfDay = TimeValue(e)" />
-        </label>
-
-        @if (_interval)
+        @if (_mode == ReminderMode.Once)
         {
             <label class="field">
-                <span>每多少分钟</span>
-                <input class="input" type="number" min="1" max="1440" @bind="_intervalMinutes" />
+                <span>提醒日期</span>
+                <input class="input" type="date" value="@_onceDate" @onchange="e => _onceDate = DateValue(e)" />
             </label>
             <label class="field">
-                <span>结束时间</span>
-                <input class="input" type="time" value="@_activeEnd" @onchange="e => _activeEnd = TimeValue(e)" />
+                <span>提醒时间</span>
+                <input class="input" type="time" value="@_timeOfDay" @onchange="e => _timeOfDay = TimeValue(e)" />
+            </label>
+            <div class="form-hint field-full">
+                只在指定日期的这个时间提醒一次，到点后自动停用，也不计入每周打卡统计。
+            </div>
+        }
+        else
+        {
+            <div class="field field-full">
+                <span>重复日</span>
+                <div class="day-row">
+                    @foreach (var (day, label) in DayOptions)
+                    {
+                        <button type="button" class="day-pill @(RoutineDays.Includes(_daysMask, day) ? "active" : "")"
+                                @onclick="() => ToggleDay(day)">@label</button>
+                    }
+                    <button type="button" class="day-shortcut" @onclick="() => _daysMask = 127">每天</button>
+                    <button type="button" class="day-shortcut" @onclick="() => _daysMask = 0b0011111">工作日</button>
+                </div>
+            </div>
+
+            <label class="field">
+                <span>@(_mode == ReminderMode.Interval ? "开始时间" : "提醒时间")</span>
+                <input class="input" type="time" value="@_timeOfDay" @onchange="e => _timeOfDay = TimeValue(e)" />
+            </label>
+
+            @if (_mode == ReminderMode.Interval)
+            {
+                <label class="field">
+                    <span>每多少分钟</span>
+                    <input class="input" type="number" min="1" max="1440" @bind="_intervalMinutes" />
+                </label>
+                <label class="field">
+                    <span>结束时间</span>
+                    <input class="input" type="time" value="@_activeEnd" @onchange="e => _activeEnd = TimeValue(e)" />
+                </label>
+            }
+
+            <label class="field">
+                <span>每天目标次数</span>
+                <input class="input" type="number" min="1" max="99" @bind="_targetCount" />
             </label>
         }
-
-        <label class="field">
-            <span>每天目标次数</span>
-            <input class="input" type="number" min="1" max="99" @bind="_targetCount" />
-        </label>
 
         <label class="field field-full">
             <span>备注</span>
@@ -122,8 +145,9 @@
     private string _emoji = "💧";
     private string _notes = string.Empty;
     private int _daysMask = 127;
+    private ReminderMode _mode = ReminderMode.Fixed;
+    private string _onceDate = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private string _timeOfDay = "09:00";
-    private bool _interval;
     private int _intervalMinutes = 60;
     private string _activeEnd = "18:00";
     private int _targetCount = 1;
@@ -131,6 +155,13 @@
     private bool _enabled = true;
     private bool _saving;
     private string? _error;
+
+    private enum ReminderMode
+    {
+        Fixed,
+        Interval,
+        Once,
+    }
 
     protected override void OnInitialized()
     {
@@ -142,7 +173,16 @@
             _notes = routine.Notes ?? string.Empty;
             _daysMask = routine.DaysMask;
             _timeOfDay = routine.TimeOfDay ?? "09:00";
-            _interval = routine.IntervalMinutes is > 0;
+            _mode = routine.OnceAt is { } once
+                ? ReminderMode.Once
+                : routine.IntervalMinutes is > 0 ? ReminderMode.Interval : ReminderMode.Fixed;
+            if (routine.OnceAt is { } onceAt)
+            {
+                var localOnce = onceAt.ToLocalTime();
+                _onceDate = localOnce.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                _timeOfDay = localOnce.ToString("HH:mm", CultureInfo.InvariantCulture);
+            }
+
             _intervalMinutes = routine.IntervalMinutes ?? 60;
             _activeEnd = routine.ActiveEnd ?? "18:00";
             _targetCount = routine.TargetCount;
@@ -164,10 +204,27 @@
             return;
         }
 
-        if (_daysMask == 0)
+        var isOnce = _mode == ReminderMode.Once;
+        if (!isOnce && _daysMask == 0)
         {
             _error = "至少选择一天。";
             return;
+        }
+
+        DateTimeOffset? onceAt = null;
+        if (isOnce)
+        {
+            onceAt = BuildOnceAt();
+            if (onceAt is null)
+            {
+                return;
+            }
+
+            if (_enabled && onceAt <= DateTimeOffset.Now)
+            {
+                _error = "仅一次提醒要晚于现在。";
+                return;
+            }
         }
 
         _saving = true;
@@ -175,7 +232,8 @@
         try
         {
             var time = string.IsNullOrWhiteSpace(_timeOfDay) ? "09:00" : _timeOfDay;
-            var interval = _interval ? Math.Clamp(_intervalMinutes, 1, 1440) : (int?)null;
+            var interval = _mode == ReminderMode.Interval ? Math.Clamp(_intervalMinutes, 1, 1440) : (int?)null;
+            var targetCount = isOnce ? 1 : Math.Clamp(_targetCount, 1, 99);
             if (Ui.EditingRoutine is { } routine)
             {
                 Service.UpdateRoutine(
@@ -193,7 +251,9 @@
                         ClearInterval = interval is null,
                         ActiveEnd = interval is null ? null : _activeEnd,
                         ClearActiveEnd = interval is null,
-                        TargetCount = Math.Clamp(_targetCount, 1, 99),
+                        OnceAt = onceAt,
+                        ClearOnceAt = !isOnce,
+                        TargetCount = targetCount,
                         Remind = _remind,
                         Enabled = _enabled,
                     },
@@ -212,11 +272,12 @@
                         TimeOfDay = time,
                         IntervalMinutes = interval,
                         ActiveEnd = interval is null ? null : _activeEnd,
-                        TargetCount = Math.Clamp(_targetCount, 1, 99),
+                        OnceAt = onceAt,
+                        TargetCount = targetCount,
                         Remind = _remind,
                     },
                     WriteContext.Manual());
-                Ui.Toast("日常已创建");
+                Ui.Toast(isOnce ? "仅一次提醒已创建" : "日常已创建");
             }
 
             Ui.CloseRoutine();
@@ -229,6 +290,24 @@
         {
             _saving = false;
         }
+    }
+
+    private DateTimeOffset? BuildOnceAt()
+    {
+        if (!DateOnly.TryParseExact(_onceDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            _error = "请选择提醒日期。";
+            return null;
+        }
+
+        if (!TimeOnly.TryParseExact(_timeOfDay, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
+        {
+            _error = "提醒时间格式必须是 HH:mm。";
+            return null;
+        }
+
+        var local = DateTime.SpecifyKind(date.ToDateTime(time), DateTimeKind.Local);
+        return new DateTimeOffset(local);
     }
 }
 

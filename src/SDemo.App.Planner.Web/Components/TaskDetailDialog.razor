@@ -103,6 +103,53 @@
                     <p class="task-detail-notes">#@string.Join(" #", todo.Tags)</p>
                 </section>
             }
+
+            <section class="task-detail-section">
+                <span class="eyebrow">操作记录</span>
+                @if (_historyError is not null)
+                {
+                    <p class="task-detail-notes empty">@_historyError</p>
+                }
+                else if (_history.Count == 0)
+                {
+                    <p class="task-detail-notes empty">还没有操作记录。创建、修改、调整优先级或状态后都会记在这里。</p>
+                }
+                else
+                {
+                    <ol class="task-history">
+                        @foreach (var entry in _history)
+                        {
+                            <li class="task-history-item">
+                                <div class="task-history-head">
+                                    <strong>@entry.Action</strong>
+                                    <time>@entry.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</time>
+                                </div>
+                                <div class="task-history-meta">
+                                    @ActorLabel(entry.Actor)
+                                    @if (!string.IsNullOrWhiteSpace(entry.Reason))
+                                    {
+                                        <span> · @entry.Reason</span>
+                                    }
+                                </div>
+                                @if (entry.Changes.Count > 0)
+                                {
+                                    <ul class="task-history-changes">
+                                        @foreach (var change in entry.Changes)
+                                        {
+                                            <li>
+                                                <span class="task-history-field">@change.Field</span>
+                                                <span class="task-history-before">@change.Before</span>
+                                                <Icon Name="arrow-right" Size="10" />
+                                                <span class="task-history-after">@change.After</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
         </ChildContent>
 
         <Footer>
@@ -121,6 +168,26 @@
 }
 
 @code {
+    private IReadOnlyList<TodoHistoryEntryDto> _history = [];
+    private string? _historyError;
+
+    protected override void OnInitialized()
+    {
+        if (Ui.ViewingTodo is not { } todo)
+        {
+            return;
+        }
+
+        try
+        {
+            _history = Service.ListTodoHistory(todo.Id);
+        }
+        catch
+        {
+            _historyError = "操作记录暂时读取失败，稍后重新打开详情再试。";
+        }
+    }
+
     private void Close() => Ui.CloseTaskDetail();
 
     private void Edit()
@@ -174,6 +241,17 @@
         WorkItemKind.Research => "research",
         WorkItemKind.Chore => "chore",
         _ => "check",
+    };
+
+    private static string ActorLabel(string actor) => actor switch
+    {
+        "manual" => "本人操作",
+        "ai" => "AI 草稿",
+        "meeting" => "会议来源",
+        "import" => "导入",
+        "ics" => "ICS 同步",
+        "system" => "系统",
+        _ => actor,
     };
 
     private static string FormatTime(DateTimeOffset? value) =>

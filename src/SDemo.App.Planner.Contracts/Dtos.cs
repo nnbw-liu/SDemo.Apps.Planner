@@ -73,6 +73,41 @@ public sealed record TodoDto
 }
 
 /// <summary>
+/// 任务的一条操作记录。由 op_log 的 before/after 快照计算而来，字段值已转成中文。
+/// </summary>
+public sealed record TodoHistoryEntryDto
+{
+    /// <summary>op_log 自增 id，同毫秒内也能稳定排序。</summary>
+    public long Id { get; init; }
+
+    /// <summary>create / update / status / postpone / reopen / delete / restore 等原始操作。</summary>
+    public required string Op { get; init; }
+
+    /// <summary>面向用户的中文动作，例如「修改任务」「状态改为 完成」。</summary>
+    public required string Action { get; init; }
+
+    /// <summary>manual / ai / meeting / import / ics / system。</summary>
+    public string Actor { get; init; } = "manual";
+
+    public string? Reason { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>实际变化的字段；记录本身不一定有字段差异（例如恢复）。</summary>
+    public IReadOnlyList<TodoChangeDto> Changes { get; init; } = [];
+}
+
+/// <summary>一条字段变化；Before/After 已格式化，空值显示为「—」。</summary>
+public sealed record TodoChangeDto
+{
+    public required string Field { get; init; }
+
+    public string? Before { get; init; }
+
+    public string? After { get; init; }
+}
+
+/// <summary>
 /// 日程。有起、有止、**不能勾完成**；与 todo 同库不同表，接口也分开（PL-01 / PL-03）。
 /// </summary>
 public sealed record EventDto

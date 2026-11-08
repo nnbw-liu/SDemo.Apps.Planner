@@ -721,6 +721,10 @@ namespace SDemo.App.Planner.Storage.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("notes");
 
+                    b.Property<DateTime?>("OnceAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("once_at");
+
                     b.Property<bool>("Remind")
                         .HasColumnType("INTEGER")
                         .HasColumnName("remind");

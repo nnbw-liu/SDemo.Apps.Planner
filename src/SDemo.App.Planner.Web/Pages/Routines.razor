@@ -69,18 +69,24 @@
                             </div>
                             <div class="routine-meta">
                                 <span>@Schedule(routine)</span>
-                                <span>· 目标 @routine.TargetCount 次</span>
+                                @if (routine.OnceAt is null)
+                                {
+                                    <span>· 目标 @routine.TargetCount 次</span>
+                                }
                                 @if (routine.Remind)
                                 {
                                     <span class="remind-chip"><Icon Name="bell" Size="11" /> 提醒</span>
                                 }
                             </div>
-                            <div class="routine-dots">
-                                @for (var i = 0; i < Math.Min(routine.TargetCount, 12); i++)
-                                {
-                                    <i class="@(i < routine.TodayCount ? "filled" : "")"></i>
-                                }
-                            </div>
+                            @if (routine.OnceAt is null)
+                            {
+                                <div class="routine-dots">
+                                    @for (var i = 0; i < Math.Min(routine.TargetCount, 12); i++)
+                                    {
+                                        <i class="@(i < routine.TodayCount ? "filled" : "")"></i>
+                                    }
+                                </div>
+                            }
                         </div>
                         <div class="routine-actions">
                             @if (routine.TodayCount > 0)
@@ -126,11 +132,14 @@
                         <div class="routine-manage-main">
                             <div class="routine-title-line">
                                 <strong>@routine.Title</strong>
-                                <span class="days-label">@RoutineDays.Label(routine.DaysMask)</span>
+                                <span class="days-label">@(routine.OnceAt is null ? RoutineDays.Label(routine.DaysMask) : "仅一次")</span>
                             </div>
                             <div class="routine-meta">
                                 <span>@Schedule(routine)</span>
-                                <span>· @routine.TargetCount 次</span>
+                                @if (routine.OnceAt is null)
+                                {
+                                    <span>· @routine.TargetCount 次</span>
+                                }
                             </div>
                         </div>
                         <button class="mini-toggle @(routine.Remind ? "on" : "")" title="提醒开关"
@@ -202,6 +211,18 @@
 
     private static string Schedule(RoutineDto routine)
     {
+        if (routine.OnceAt is { } onceAt)
+        {
+            var local = onceAt.ToLocalTime();
+            var when = local.ToString("M月d日 HH:mm", CultureInfo.InvariantCulture);
+            if (routine.Enabled)
+            {
+                return when;
+            }
+
+            return onceAt <= DateTimeOffset.Now ? $"{when} · 已提醒" : $"{when} · 已停用";
+        }
+
         if (routine.IntervalMinutes is > 0)
         {
             return $"{routine.TimeOfDay}–{routine.ActiveEnd} · 每 {routine.IntervalMinutes} 分钟";

@@ -71,6 +71,19 @@ public sealed partial class PlannerStore
         return row;
     }
 
+    /// <summary>实体的写操作审计，按时间倒序；用于任务操作记录。</summary>
+    public IReadOnlyList<OpLogRow> QueryOpLogs(string entityType, string entityId, int limit = 100)
+    {
+        limit = Math.Clamp(limit, 1, 500);
+        using var db = Open();
+        return db.OpLog.AsNoTracking()
+            .Where(x => x.EntityType == entityType && x.EntityId == entityId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Take(limit)
+            .ToList();
+    }
+
     public EventRow? GetEvent(string id, bool includeDeleted = false)
     {
         using var db = Open();

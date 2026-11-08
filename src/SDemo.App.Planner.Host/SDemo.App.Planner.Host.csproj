@@ -12,8 +12,8 @@
     <AssemblyTitle>事序</AssemblyTitle>
     <Description>事序 · 项目与日常</Description>
     <Company>SDemo</Company>
-    <Version>0.4.0</Version>
-    <FileVersion>0.4.0.0</FileVersion>
+    <Version>0.4.1</Version>
+    <FileVersion>0.4.1.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\planner.ico</ApplicationIcon>
   </PropertyGroup>

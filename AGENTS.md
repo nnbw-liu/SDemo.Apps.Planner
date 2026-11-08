@@ -6,11 +6,11 @@
 
 事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅。
 
-## 现状（2026-11-06）
+## 现状（2026-11-07）
 
 ✅ **v4 已实现并实机验证**：在 v3 六状态/完成记录/托盘之上完成更名「事序」、搜索可清除、中国法定节假日联网同步与手动假期管理。
 - 六件套：`Contracts` / `Storage` / `Core` / `Mcp` / `Web` / `Host`，`SDemo.Planner.slnf`。
-- 真实 EF migrations（含 FTS5 虚表 + `WorkspaceV2` + `WorkspaceV3` + `HolidaysV4`）+ 软删回收站 + outbox/op-log + MCP 审计。
+- 真实 EF migrations（含 FTS5 虚表 + `WorkspaceV2` + `WorkspaceV3` + `HolidaysV4` + `AddRoutineOnceAt`）+ 软删回收站 + outbox/op-log + MCP 审计。
 - Host 是 WPF 外壳 + `BlazorWebView`；业务 UI 全在 `SDemo.App.Planner.Web`（RCL）。主窗口关闭收进托盘，提醒继续。
 - 页面：首页、项目列表/详情、任务、日历（任务 + 日程 + 节假日）、日常、草稿、回收站。
 - 页面标题（v4.2）：各页不再有 `.page-head` 英雄区，标题/说明统一在 topbar（`MainLayout` 的 `PageTitle`/`PageDescription`）；页面动作走右对齐 `.page-toolbar` 或筛选条里的 `.push-right`。
@@ -20,13 +20,15 @@
 - 日历（v4.3）：假期徽标放大并给有假期的格子加底色（补班橙色「班」）；格子右下角 hover「+」直接新建任务并预填当天截止；工具栏不再有「任务」按钮。
 - 项目页（v4.3）：「新建项目」在 topbar、「新建任务」左侧；由 `MainLayout.IsProjectsPage` 路由判断渲染，不用 Sections。
 - 任务详情（v4.3）：始终显示「任务说明」段，空时给占位提示。
+- 任务详情（v4.5）：底部「操作记录」回放 `op_log`，显示创建/修改/调优先级/改状态/延期/删除/恢复的动作、时间、操作者与字段前后值。
 - 主题（v4.3）：深色/浅色双主题，默认跟随系统；设置入口在侧栏底部与「退出应用」同排；选择存 localStorage `planner-theme`，WPF 标题栏经 `IThemeHost` 同步。
 - 导航与托盘（v4.4）：浅色选中项用深靛蓝字 + 细描边；「新建日常」常驻 topbar；项目详情顶栏「新建任务」自动预填当前项目；托盘菜单用 `TrayIcon.BuildMenu(dark)` + `DynamicResource` 跟随主题，标题区移进 ControlTemplate 不再可选。
 - 工作项状态：open/doing/done/verified/closed/canceled；终态可写完成说明 + 产物；任务可延期（1 天/1 周/1 月/指定时间）。
 - 任务列表（v4.1）：左侧只读状态徽标，点行看详情；右侧状态下拉/编辑/延期；分组支持「按项目」「项目 + 迭代」，两级都可折叠。
 - 迭代下拉显示「大迭代 · 小迭代」，放不下时退化为只显示小迭代（`SelectOption.CompactLabel`）。
 - 迭代可完成/重开；完成大迭代级联小迭代。
-- 日常提醒：固定时间 / 每隔 N 分钟；30 分钟宽限；`last_fired_at` 去重；右下角非激活 Toast。
+- 日常提醒：固定时间 / 每隔 N 分钟 / 仅一次（`once_at`，到点后自动停用）；30 分钟宽限；`last_fired_at` 去重；右下角非激活 Toast。
+- 提醒卡（v4.6）：独立 WPF 窗口，跟随深浅主题；启动时按系统主题兜底；设置「关于」显示版本 0.4.1。
 - 日历节假日：`holiday` 表；`HolidaySyncService` 拉 timor.tech；manual 优先于 remote；月格显示休/班 badge 与名称。
 - 搜索：默认全部状态；支持清空按钮/Esc/任务页「清除」；关键字命中标题、备注、完成说明。
 - 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown`。
@@ -102,7 +104,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 不能在 `app.Run()` 前 `Show()` 主窗口；WebView2 会抛 `EnsureCoreWebView2Async cannot be used before the application's event loop has started running`。先设 `app.MainWindow`，再 `app.Run(main)`。
 - Blazor 的 `<input type=date/time>` 不要直接 `e.Value?.ToString()`；用 `PlannerPageBase.DateValue/TimeValue`，否则会带秒/区域格式，后端报 `时间格式必须是 HH:mm`。
 - 项目/迭代最多两层：小迭代必须挂同项目的大迭代；`TodoPatch` 换项目时清掉不匹配的迭代。
-- 日常提醒固定时间有 30 分钟宽限，`last_fired_at` 当天去重；`CollectDueReminders()` 会写 `last_fired_at`，测试时注意。
+- 日常提醒固定时间有 30 分钟宽限，`last_fired_at` 当天去重；仅一次提醒存 UTC `once_at`，到点触发后自动 `Enabled=false`，不会每天重复；`CollectDueReminders()` 会写 `last_fired_at`，测试时注意。
 - 关闭主窗口是 `Hide()` 到托盘（`allowClose=false`），不是退出，提醒 tick 继续；`ExitApp()` / 托盘「退出」才真退出并清理 `Shell_NotifyIcon`。
 - 托盘用 `TrayIcon.cs` 的 Win32 `Shell_NotifyIcon` + `HwndSource`；不要给 Host 加 `<UseWindowsForms>`，会和 WPF 的 `Application`/`MessageBox`/`Brushes`/`Cursors`/`Color`/`KeyEventArgs` 产生 `CS0104`。
 - 工作项终态是 `done/verified/closed/canceled`；项目/迭代完成统计只算 `done/verified/closed`，`canceled` 排除；终态写 `completed_at`，非终态清空。
@@ -115,6 +117,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 顶栏「新建任务」走 `MainLayout.OpenNewTask()`：路由是 `/projects/{id}` 时把 `projectId` 传给 `Ui.OpenTask`，否则新建任务会丢项目。
 - 托盘标题不要塞进 `menu.Items`（会被 WPF 包成 MenuItem 出现 hover/选中）；标题画进 `MenuTemplate`，颜色用 `{DynamicResource Tray*}`，由 `BuildMenu(dark)` 写 `menu.Resources`。
 - 主题：颜色一律走 `--surface-*` / `--wash-rgb` / 语义 token，别新写 `rgba(255,255,255,α)` 或深色 hex，否则浅色主题下会瞎；半透明遮罩写 `rgba(var(--wash-rgb), α)`。主题存 localStorage `planner-theme`，`ThemeService` + `IThemeHost` 同步 WPF 标题栏。
+- 提醒卡是 WPF 窗口，不读 CSS token；主题由 `HostThemeBridge` 调 `ReminderToastWindow.SetTheme`，颜色改 `ReminderToastWindow.Palette`，别再写死深色。
 - `SectionOutlet`/`SectionContent` 在 BlazorWebView 里不渲染（内容被静默丢弃），页面级 topbar 动作改用 `MainLayout` 路由判断。
 - 日历格子是 `<button>`，hover「+」用 `<span class="cell-add">` 绝对定位，别嵌 button。
 - 节假日：`HolidaySyncService` 只替换 `source=remote`，同日 `manual` 必须保留；手动假期离线可用，联网失败不能清空已有数据。

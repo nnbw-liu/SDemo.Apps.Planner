@@ -444,7 +444,10 @@ public sealed partial class PlannerService
         var day = date ?? TodayLocal();
         var counts = _store.GetRoutineChecks(day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         return _store.QueryRoutines()
-            .Where(r => RoutineDays.Includes(r.DaysMask, day.DayOfWeek))
+            .Where(r => r.Enabled)
+            .Where(r => r.OnceAt is { } onceAt
+                ? LocalDateOf(onceAt) == day
+                : RoutineDays.Includes(r.DaysMask, day.DayOfWeek))
             .Select(r => PlannerMapper.ToRoutine(r, counts.GetValueOrDefault(r.Id)?.Count ?? 0))
             .ToList();
     }
@@ -469,7 +472,13 @@ public sealed partial class PlannerService
             input.TimeOfDay,
             input.IntervalMinutes,
             input.ActiveEnd,
-            input.TargetCount);
+            input.TargetCount,
+            input.OnceAt);
+
+        if (input.Remind && normalized.OnceAt is { } onceAt && onceAt <= now)
+        {
+            throw PlannerException.Validation("仅一次提醒要晚于现在。");
+        }
 
         var row = new RoutineRow
         {
@@ -481,6 +490,7 @@ public sealed partial class PlannerService
             TimeOfDay = normalized.TimeOfDay,
             IntervalMinutes = normalized.IntervalMinutes,
             ActiveEnd = normalized.ActiveEnd,
+            OnceAt = normalized.OnceAt,
             TargetCount = normalized.TargetCount,
             Remind = input.Remind,
             Enabled = true,
@@ -522,9 +532,18 @@ public sealed partial class PlannerService
         var timeOfDay = patch.ClearTimeOfDay ? null : patch.TimeOfDay ?? row.TimeOfDay;
         var interval = patch.ClearInterval ? null : patch.IntervalMinutes ?? row.IntervalMinutes;
         var activeEnd = patch.ClearActiveEnd ? null : patch.ActiveEnd ?? row.ActiveEnd;
+        var onceAt = patch.ClearOnceAt ? null : patch.OnceAt ?? row.OnceAt;
         var target = patch.TargetCount ?? row.TargetCount;
 
-        var normalized = NormalizeRoutine(title, emoji, notes, daysMask, timeOfDay, interval, activeEnd, target);
+        var normalized = NormalizeRoutine(title, emoji, notes, daysMask, timeOfDay, interval, activeEnd, target, onceAt);
+        var enabled = patch.Enabled ?? row.Enabled;
+        var remind = patch.Remind ?? row.Remind;
+        var now = NowUtc();
+        if (enabled && remind && normalized.OnceAt is { } onceUtc && onceUtc <= now)
+        {
+            throw PlannerException.Validation("仅一次提醒要晚于现在。");
+        }
+
         var updated = new RoutineRow
         {
             Id = row.Id,
@@ -535,14 +554,15 @@ public sealed partial class PlannerService
             TimeOfDay = normalized.TimeOfDay,
             IntervalMinutes = normalized.IntervalMinutes,
             ActiveEnd = normalized.ActiveEnd,
+            OnceAt = normalized.OnceAt,
             TargetCount = normalized.TargetCount,
-            Remind = patch.Remind ?? row.Remind,
-            Enabled = patch.Enabled ?? row.Enabled,
+            Remind = remind,
+            Enabled = enabled,
             Sort = patch.Sort ?? row.Sort,
             Revision = row.Revision + 1,
             LastFiredAt = row.LastFiredAt,
             CreatedAt = row.CreatedAt,
-            UpdatedAt = NowUtc(),
+            UpdatedAt = now,
         };
 
         _store.WriteRoutine(new RoutineWrite
@@ -595,7 +615,7 @@ public sealed partial class PlannerService
         days = Math.Clamp(days, 1, 31);
         var end = endDate ?? TodayLocal();
         var start = end.AddDays(-(days - 1));
-        var routines = _store.QueryRoutines().Where(r => r.Enabled).ToList();
+        var routines = _store.QueryRoutines().Where(r => r.Enabled && r.OnceAt == null).ToList();
         var checks = _store.QueryRoutineChecks(
                 start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
@@ -704,13 +724,52 @@ public sealed partial class PlannerService
 
         foreach (var row in _store.QueryRoutines().Where(r => r.Enabled && r.Remind))
         {
-            if (!RoutineDays.Includes(row.DaysMask, today.DayOfWeek))
+            var count = checks.GetValueOrDefault(row.Id)?.Count ?? 0;
+            if (count >= Math.Max(1, row.TargetCount))
             {
                 continue;
             }
 
-            var count = checks.GetValueOrDefault(row.Id)?.Count ?? 0;
-            if (count >= Math.Max(1, row.TargetCount))
+            // 仅一次：只在指定本地日期/时刻的宽限窗口内触发，触发后自动停用，避免每天重复。
+            if (row.OnceAt is { } onceUtc)
+            {
+                var onceLocal = TimeZoneInfo.ConvertTime(
+                    new DateTimeOffset(DateTime.SpecifyKind(onceUtc, DateTimeKind.Utc)),
+                    _time.LocalTimeZone);
+                if (DateOnly.FromDateTime(onceLocal.DateTime) != today)
+                {
+                    continue;
+                }
+
+                if (row.LastFiredAt is { } firedOnce && firedOnce >= onceUtc)
+                {
+                    continue;
+                }
+
+                if (local < onceLocal || local - onceLocal > ReminderGrace)
+                {
+                    continue;
+                }
+
+                result.Add(new RoutineReminderDto
+                {
+                    RoutineId = row.Id,
+                    Title = row.Title,
+                    Emoji = row.Emoji,
+                    Message = "仅一次提醒",
+                    ScheduledFor = onceLocal,
+                    IsInterval = false,
+                });
+
+                if (markFired)
+                {
+                    _store.MarkRoutineFired(row.Id, local.UtcDateTime, disable: true);
+                }
+
+                continue;
+            }
+
+            if (!RoutineDays.Includes(row.DaysMask, today.DayOfWeek))
             {
                 continue;
             }
@@ -779,9 +838,9 @@ public sealed partial class PlannerService
                 RoutineId = row.Id,
                 Title = row.Title,
                 Emoji = row.Emoji,
-                Message = row.TargetCount > 1
-                    ? $"该做「{row.Title}」了（{ordinal}/{row.TargetCount}）"
-                    : $"该做「{row.Title}」了",
+                Message = isInterval
+                    ? (row.TargetCount > 1 ? $"间隔提醒 · 第 {ordinal}/{row.TargetCount} 次" : "间隔提醒")
+                    : (row.TargetCount > 1 ? $"第 {ordinal}/{row.TargetCount} 次" : "到点提醒"),
                 ScheduledFor = scheduled,
                 IsInterval = isInterval,
             });
@@ -934,9 +993,28 @@ public sealed partial class PlannerService
         string? timeOfDay,
         int? intervalMinutes,
         string? activeEnd,
-        int targetCount)
+        int targetCount,
+        DateTimeOffset? onceAt = null)
     {
         var cleanTitle = RequireTitle(title);
+
+        if (onceAt is { } once)
+        {
+            var localOnce = TimeZoneInfo.ConvertTime(once, _time.LocalTimeZone);
+            var localDate = DateOnly.FromDateTime(localOnce.DateTime);
+            var localTime = new TimeOnly(localOnce.Hour, localOnce.Minute);
+            return new RoutineNormalized(
+                cleanTitle,
+                NormalizeEmoji(emoji),
+                NormalizeNotes(notes),
+                1 << RoutineDays.BitFor(localDate.DayOfWeek),
+                localTime.ToString("HH:mm", CultureInfo.InvariantCulture),
+                null,
+                null,
+                1,
+                ToUtc(localDate, localTime));
+        }
+
         if (daysMask is < 1 or > 127)
         {
             throw PlannerException.Validation("重复日必须至少选一天（掩码 1–127）");
@@ -946,7 +1024,7 @@ public sealed partial class PlannerService
         var start = NormalizeClock(timeOfDay) ?? (interval is null ? null : "08:00");
         if (interval is null)
         {
-            return new RoutineNormalized(cleanTitle, NormalizeEmoji(emoji), NormalizeNotes(notes), daysMask, start, null, null, Math.Clamp(targetCount, 1, 99));
+            return new RoutineNormalized(cleanTitle, NormalizeEmoji(emoji), NormalizeNotes(notes), daysMask, start, null, null, Math.Clamp(targetCount, 1, 99), null);
         }
 
         var end = NormalizeClock(activeEnd) ?? "22:00";
@@ -968,7 +1046,8 @@ public sealed partial class PlannerService
             start,
             interval,
             end,
-            Math.Clamp(targetCount, 1, 99));
+            Math.Clamp(targetCount, 1, 99),
+            null);
     }
 
     private static string? NormalizeClock(string? value)
@@ -987,6 +1066,10 @@ public sealed partial class PlannerService
         TimeOnly.TryParseExact(value ?? string.Empty, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out time);
 
     private DateOnly TodayLocal() => DateOnly.FromDateTime(_time.GetLocalNow().DateTime);
+
+    /// <summary>UTC 时刻 → TimeProvider 时区下的本地日期。</summary>
+    private DateOnly LocalDateOf(DateTime utc) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, _time.LocalTimeZone));
 
     /// <summary>本地日期 + 本地时刻 → UTC；用 TimeProvider 的时区，测试可控。</summary>
     private DateTime ToUtc(DateOnly date, TimeOnly time)
@@ -1039,5 +1122,6 @@ public sealed partial class PlannerService
         string? TimeOfDay,
         int? IntervalMinutes,
         string? ActiveEnd,
-        int TargetCount);
+        int TargetCount,
+        DateTime? OnceAt);
 }
