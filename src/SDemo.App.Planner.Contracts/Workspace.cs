@@ -87,6 +87,9 @@ public sealed record ProjectDto
 
     public int Revision { get; init; }
 
+    /// <summary>所属分组；一个项目可以同时属于多个分组。</summary>
+    public IReadOnlyList<ProjectGroupDto> Groups { get; init; } = [];
+
     /// <summary>大迭代 + 小迭代，扁平返回；用 ParentId 组树。</summary>
     public IReadOnlyList<IterationDto> Iterations { get; init; } = [];
 
@@ -303,6 +306,9 @@ public sealed record ProjectInput
 
     public string? Color { get; init; }
 
+    /// <summary>所属分组 Id；空表示暂不分组。</summary>
+    public IReadOnlyList<string>? GroupIds { get; init; }
+
     public DateTimeOffset? StartAt { get; init; }
 
     public DateTimeOffset? TargetAt { get; init; }
@@ -320,6 +326,9 @@ public sealed record ProjectPatch
 
     public ProjectStatus? Status { get; init; }
 
+    /// <summary>null 表示不改分组；空数组表示清空分组。</summary>
+    public IReadOnlyList<string>? GroupIds { get; init; }
+
     public DateTimeOffset? StartAt { get; init; }
 
     public bool ClearStartAt { get; init; }
@@ -331,8 +340,45 @@ public sealed record ProjectPatch
     public int? Sort { get; init; }
 
     public bool IsNoOp => Name is null && Description is null && !ClearDescription && Color is null
-        && Status is null && StartAt is null && !ClearStartAt && TargetAt is null && !ClearTargetAt
-        && Sort is null;
+        && Status is null && GroupIds is null && StartAt is null && !ClearStartAt && TargetAt is null
+        && !ClearTargetAt && Sort is null;
+}
+
+/// <summary>项目分组：用于把不同种类的项目集合分开（例如「产品」「外包」「个人」）。</summary>
+public sealed record ProjectGroupDto
+{
+    public required string Id { get; init; }
+
+    public required string Name { get; init; }
+
+    public string Color { get; init; } = "#7C8CF8";
+
+    public int Sort { get; init; }
+
+    public int Revision { get; init; }
+
+    /// <summary>分组下的项目数；仅在分组列表接口里有值。</summary>
+    public int ProjectCount { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+}
+
+public sealed record ProjectGroupInput
+{
+    public required string Name { get; init; }
+
+    public string? Color { get; init; }
+}
+
+public sealed record ProjectGroupPatch
+{
+    public string? Name { get; init; }
+
+    public string? Color { get; init; }
+
+    public int? Sort { get; init; }
+
+    public bool IsNoOp => Name is null && Color is null && Sort is null;
 }
 
 public sealed record IterationInput

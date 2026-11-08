@@ -118,6 +118,10 @@
 {
     <TaskDetailDialog />
 }
+@if (Ui.BugEditorOpen)
+{
+    <BugEditor />
+}
 @if (Ui.TaskPostponeOpen)
 {
     <TaskPostponeDialog />
@@ -133,6 +137,10 @@
 @if (Ui.ProjectEditorOpen)
 {
     <ProjectEditor />
+}
+@if (Ui.ProjectGroupsOpen)
+{
+    <ProjectGroupManager />
 }
 @if (Ui.IterationEditorOpen)
 {

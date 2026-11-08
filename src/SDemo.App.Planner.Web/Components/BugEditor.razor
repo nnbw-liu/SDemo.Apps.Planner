@@ -1,0 +1,123 @@
+@inherits PlannerPageBase
+@* 从任务直接派生 Bug：自动挂到来源任务下，一个任务可以派生多个。 *@
+@if (Ui.BugParentTodo is { } parent)
+{
+    <Modal Title="新建关联 Bug" Eyebrow="@parent.Title" SizeClass="modal-md" OnClose="Close">
+        <ChildContent>
+            <div class="bug-source">
+                <span>来源任务</span>
+                <strong>@parent.Title</strong>
+                <span class="push-right">@KindLabel(parent.Kind)</span>
+            </div>
+
+            <div class="form-grid">
+                <label class="field field-full">
+                    <span>Bug 标题</span>
+                    <input class="input input-lg" placeholder="例如：登录按钮在 Safari 下无响应"
+                           @bind="_title" @bind:event="oninput" autofocus />
+                </label>
+
+                <label class="field field-full">
+                    <span>复现步骤 / 说明</span>
+                    <textarea class="input textarea" rows="5"
+                              placeholder="怎么复现、预期结果、实际结果、影响范围…"
+                              @bind="_notes"></textarea>
+                </label>
+
+                <div class="field field-full">
+                    <span>优先级</span>
+                    <div class="chip-row">
+                        <button type="button" class="chip @(_priority == 1 ? "chip-danger" : "")" @onclick="() => _priority = 1">高</button>
+                        <button type="button" class="chip @(_priority == 2 ? "chip-active" : "")" @onclick="() => _priority = 2">中</button>
+                        <button type="button" class="chip @(_priority == 3 ? "chip-muted" : "")" @onclick="() => _priority = 3">低</button>
+                    </div>
+                </div>
+
+                <p class="field-hint field-full">
+                    归属沿用来源任务：@PlacementLabel(parent)
+                </p>
+
+                @if (_error is not null)
+                {
+                    <div class="form-error field-full">@_error</div>
+                }
+            </div>
+        </ChildContent>
+
+        <Footer>
+            <button class="btn btn-ghost" @onclick="Close">取消</button>
+            <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+                @(_saving ? "提交中…" : "创建 Bug")
+            </button>
+        </Footer>
+    </Modal>
+}
+
+@code {
+    private string _title = string.Empty;
+    private string _notes = string.Empty;
+    private int _priority = 2;
+    private bool _saving;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _priority = Ui.BugParentTodo?.Priority ?? 2;
+    }
+
+    private void Close() => Ui.CloseBugEditor();
+
+    private void Save()
+    {
+        if (Ui.BugParentTodo is not { } parent)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "先给这个 Bug 起个标题。";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            Service.CreateTodos(
+                [
+                    new TodoCreateInput
+                    {
+                        Title = _title.Trim(),
+                        Notes = string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
+                        Kind = WorkItemKind.Bug,
+                        ParentTodoId = parent.Id,
+                        ProjectId = parent.ProjectId,
+                        IterationId = parent.IterationId,
+                        Priority = _priority,
+                    },
+                ],
+                WriteContext.Manual());
+
+            Ui.Toast("已创建关联 Bug");
+            Ui.CloseBugEditor();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string PlacementLabel(TodoDto todo)
+    {
+        var project = string.IsNullOrWhiteSpace(todo.ProjectName) ? "未归属项目" : todo.ProjectName;
+        return string.IsNullOrWhiteSpace(todo.IterationName)
+            ? project
+            : $"{project} · {todo.IterationName}";
+    }
+}

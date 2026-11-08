@@ -53,6 +53,9 @@ public sealed record TodoQuery
 
     public string? IterationId { get; init; }
 
+    /// <summary>只返回直接挂在该任务下的子项（例如任务衍生的 Bug）。</summary>
+    public string? ParentTodoId { get; init; }
+
     /// <summary>task / bug / research / chore；null 表示不过滤。</summary>
     public WorkItemKind? Kind { get; init; }
 

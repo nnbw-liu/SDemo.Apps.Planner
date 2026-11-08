@@ -62,6 +62,24 @@ public sealed class ProjectWrite
 
     public int? ExpectedRevision { get; init; }
 
+    /// <summary>null 表示不动分组；空数组表示清空。</summary>
+    public IReadOnlyList<string>? GroupIds { get; init; }
+
+    public string Actor { get; init; } = "manual";
+
+    public string? RequestId { get; init; }
+
+    public string? Reason { get; init; }
+}
+
+public sealed class ProjectGroupWrite
+{
+    public required ProjectGroupRow Row { get; init; }
+
+    public required string Op { get; init; }
+
+    public int? ExpectedRevision { get; init; }
+
     public string Actor { get; init; } = "manual";
 
     public string? RequestId { get; init; }
@@ -121,6 +139,9 @@ public sealed record TodoFilter
     public string? ProjectId { get; init; }
 
     public string? IterationId { get; init; }
+
+    /// <summary>只取直接挂在该父任务下的子项。</summary>
+    public string? ParentTodoId { get; init; }
 
     /// <summary>task / bug / research / chore。</summary>
     public string? Kind { get; init; }

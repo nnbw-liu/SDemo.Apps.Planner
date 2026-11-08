@@ -150,12 +150,17 @@ public sealed class McpServer
         };
     }
 
-    private static JsonObject ToolsListResult()
+    private JsonObject ToolsListResult()
     {
+        var settings = _service.GetMcpSettings();
+        var enabled = settings.Tools.Where(t => t.Enabled).Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
         var tools = new JsonArray();
         foreach (var tool in McpToolCatalog.Tools)
         {
-            tools.Add(tool.ToJson());
+            if (settings.Enabled && enabled.Contains(tool.Name))
+            {
+                tools.Add(tool.ToJson());
+            }
         }
 
         return new JsonObject { ["tools"] = tools };
@@ -176,6 +181,29 @@ public sealed class McpServer
             var unknown = ErrorEnvelope(requestId, ErrorCodes.UnknownTool, $"未知工具「{name}」", "先 tools/list 看可用工具");
             RecordAudit(name ?? "(null)", arguments, 0, ErrorCodes.UnknownTool, started.ElapsedMilliseconds, requestId);
             return ToolResult(unknown, isError: true);
+        }
+
+        var settings = _service.GetMcpSettings();
+        if (!settings.Enabled)
+        {
+            var disabled = ErrorEnvelope(
+                requestId,
+                ErrorCodes.McpDisabled,
+                "MCP 已在设置中关闭",
+                "打开 设置 → MCP 服务，再重试");
+            RecordAudit(tool.Name, arguments, 0, ErrorCodes.McpDisabled, started.ElapsedMilliseconds, requestId);
+            return ToolResult(disabled, isError: true);
+        }
+
+        if (settings.Tools.FirstOrDefault(t => string.Equals(t.Name, tool.Name, StringComparison.Ordinal))?.Enabled != true)
+        {
+            var disabled = ErrorEnvelope(
+                requestId,
+                ErrorCodes.McpToolDisabled,
+                $"工具「{tool.Name}」已在设置中关闭",
+                "打开 设置 → MCP 服务，启用该工具后重试");
+            RecordAudit(tool.Name, arguments, 0, ErrorCodes.McpToolDisabled, started.ElapsedMilliseconds, requestId);
+            return ToolResult(disabled, isError: true);
         }
 
         var context = BuildWriteContext(meta, requestId);

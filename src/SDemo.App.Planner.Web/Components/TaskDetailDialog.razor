@@ -1,4 +1,5 @@
 @inherits PlannerPageBase
+@inject IJSRuntime JS
 @* 任务只读详情。状态/编辑/延期入口在列表行上，详情里保留「标记完成」与「编辑」。 *@
 @if (Ui.ViewingTodo is { } todo)
 {
@@ -36,6 +37,22 @@
                     <dt>迭代</dt>
                     <dd>@(string.IsNullOrWhiteSpace(todo.IterationName) ? "未挂迭代" : todo.IterationName)</dd>
                 </div>
+                @if (todo.ParentTodoId is not null)
+                {
+                    <div>
+                        <dt>来源任务</dt>
+                        <dd>
+                            @if (_parentTodo is { } parent)
+                            {
+                                <button type="button" class="task-link" @onclick="() => OpenTodo(parent)">@parent.Title</button>
+                            }
+                            else
+                            {
+                                <span class="detail-empty">原任务已删除</span>
+                            }
+                        </dd>
+                    </div>
+                }
                 <div>
                     <dt>截止时间</dt>
                     <dd>@FormatTime(todo.DueAt)</dd>
@@ -55,7 +72,16 @@
             </dl>
 
             <section class="task-detail-section">
-                <span class="eyebrow">任务说明</span>
+                <div class="task-detail-section-head">
+                    <span class="eyebrow">任务说明</span>
+                    @if (!string.IsNullOrWhiteSpace(todo.Notes))
+                    {
+                        <button class="icon-btn copy-btn" type="button" title="复制任务说明"
+                                @onclick="() => CopyNotes(todo.Notes)">
+                            <Icon Name="copy" Size="14" />
+                        </button>
+                    }
+                </div>
                 @if (!string.IsNullOrWhiteSpace(todo.Notes))
                 {
                     <p class="task-detail-notes">@todo.Notes</p>
@@ -65,6 +91,46 @@
                     <p class="task-detail-notes empty">还没有填写说明。点右下角「编辑任务」补充背景、验收标准或参考链接。</p>
                 }
             </section>
+
+            @if (todo.Kind != WorkItemKind.Bug)
+            {
+                <section class="task-detail-section">
+                    <div class="task-detail-section-head">
+                        <span class="eyebrow">关联 Bug</span>
+                        @if (_linkedBugs.Count > 0)
+                        {
+                            <span class="linked-bug-meta">@_linkedBugs.Count</span>
+                        }
+                        <button type="button" class="btn btn-ghost btn-sm push-right" @onclick="() => Ui.OpenBugEditor(todo)">
+                            <Icon Name="bug" Size="13" /> 新建 Bug
+                        </button>
+                    </div>
+                    @if (_relationError is not null)
+                    {
+                        <p class="linked-bug-empty">@_relationError</p>
+                    }
+                    else if (_linkedBugs.Count == 0)
+                    {
+                        <p class="linked-bug-empty">还没有关联 Bug。发现问题时可以直接从这条任务派生，一个任务可以挂多个。</p>
+                    }
+                    else
+                    {
+                        <ul class="linked-bug-list">
+                            @foreach (var bug in _linkedBugs)
+                            {
+                                <li>
+                                    <button type="button" class="linked-bug" @onclick="() => OpenTodo(bug)">
+                                        <span class="status-pill @StatusClass(bug.Status)">@StatusLabel(bug.Status)</span>
+                                        <span class="linked-bug-title">@bug.Title</span>
+                                        <span class="linked-bug-meta">@PriorityLabel(bug.Priority)</span>
+                                        <Icon Name="chevron-right" Size="12" />
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
 
             @if (!string.IsNullOrWhiteSpace(todo.CompletionNote))
             {
@@ -169,26 +235,81 @@
 
 @code {
     private IReadOnlyList<TodoHistoryEntryDto> _history = [];
+    private IReadOnlyList<TodoDto> _linkedBugs = [];
+    private TodoDto? _parentTodo;
     private string? _historyError;
+    private string? _relationError;
 
-    protected override void OnInitialized()
+    protected override void Reload()
     {
         if (Ui.ViewingTodo is not { } todo)
         {
+            _history = [];
+            _linkedBugs = [];
+            _parentTodo = null;
             return;
         }
 
         try
         {
             _history = Service.ListTodoHistory(todo.Id);
+            _historyError = null;
         }
         catch
         {
+            _history = [];
             _historyError = "操作记录暂时读取失败，稍后重新打开详情再试。";
+        }
+
+        try
+        {
+            _linkedBugs = todo.Kind == WorkItemKind.Bug
+                ? []
+                : Service.ListTodos(new TodoQuery
+                {
+                    Status = "all",
+                    ParentTodoId = todo.Id,
+                    Kind = WorkItemKind.Bug,
+                    Sort = TodoSort.Status,
+                    Limit = 50,
+                });
+            _parentTodo = todo.ParentTodoId is { } parentId ? Service.GetTodo(parentId) : null;
+            _relationError = null;
+        }
+        catch
+        {
+            _linkedBugs = [];
+            _parentTodo = null;
+            _relationError = "关联 Bug 暂时读取失败，稍后重新打开详情再试。";
         }
     }
 
+    private void OpenTodo(TodoDto target)
+    {
+        if (Ui.ViewingTodo?.Id == target.Id)
+        {
+            return;
+        }
+
+        Ui.CloseTaskDetail();
+        Ui.OpenTaskDetail(target);
+        Reload();
+    }
+
     private void Close() => Ui.CloseTaskDetail();
+
+    private async Task CopyNotes(string text)
+    {
+        try
+        {
+            var ok = await JS.InvokeAsync<bool>("plannerClipboard.copy", text);
+            Ui.Toast(ok ? "任务说明已复制" : "复制失败，请手动选中文本复制");
+        }
+        catch (JSException)
+        {
+            Ui.Toast("复制失败，请手动选中文本复制");
+        }
+    }
 
     private void Edit()
     {
@@ -241,6 +362,13 @@
         WorkItemKind.Research => "research",
         WorkItemKind.Chore => "chore",
         _ => "check",
+    };
+
+    private static string PriorityLabel(int priority) => priority switch
+    {
+        1 => "高优先级",
+        3 => "低优先级",
+        _ => "中优先级",
     };
 
     private static string ActorLabel(string actor) => actor switch

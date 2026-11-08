@@ -45,6 +45,10 @@ public enum TodoSort
 
     [JsonStringEnumMemberName("created")]
     Created = 3,
+
+    /// <summary>按状态：进行中 &gt; 新建 &gt; 已完成 &gt; 已验证 &gt; 已关闭 &gt; 已取消。</summary>
+    [JsonStringEnumMemberName("status")]
+    Status = 4,
 }
 
 /// <summary>条目的来源。MCP 侧不接受自称 manual，避免 AI 条目伪装成用户手动录入。</summary>

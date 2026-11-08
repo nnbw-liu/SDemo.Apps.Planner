@@ -29,6 +29,130 @@ public sealed partial class PlannerStore
         return row is null || (!includeDeleted && row.DeletedAt is not null) ? null : row;
     }
 
+    // ── 项目分组 ──────────────────────────────────────────────────────────
+
+    public IReadOnlyList<ProjectGroupRow> QueryProjectGroups(bool includeDeleted = false)
+    {
+        using var db = Open();
+        var query = db.ProjectGroups.AsNoTracking();
+        if (!includeDeleted)
+        {
+            query = query.Where(g => g.DeletedAt == null);
+        }
+
+        return query.OrderBy(g => g.Sort).ThenBy(g => g.CreatedAt).ToList();
+    }
+
+    public ProjectGroupRow? GetProjectGroup(string id, bool includeDeleted = false)
+    {
+        using var db = Open();
+        var row = db.ProjectGroups.AsNoTracking().FirstOrDefault(g => g.Id == id);
+        return row is null || (!includeDeleted && row.DeletedAt is not null) ? null : row;
+    }
+
+    /// <summary>全量成员关系；个人库规模有限，由 Core 在内存里分组。</summary>
+    public IReadOnlyList<ProjectGroupMemberRow> QueryProjectGroupMembers()
+    {
+        using var db = Open();
+        return db.ProjectGroupMembers.AsNoTracking().ToList();
+    }
+
+    public IReadOnlyList<string> QueryProjectGroupIds(string projectId)
+    {
+        using var db = Open();
+        return db.ProjectGroupMembers.AsNoTracking()
+            .Where(m => m.ProjectId == projectId)
+            .Select(m => m.ProjectGroupId)
+            .ToList();
+    }
+
+    public void WriteProjectGroup(ProjectGroupWrite write)
+    {
+        using var db = Open();
+        try
+        {
+            using var transaction = db.Database.BeginTransaction();
+            var row = write.Row;
+            var current = db.ProjectGroups.FirstOrDefault(g => g.Id == row.Id);
+            string? beforeJson = null;
+
+            if (current is null)
+            {
+                if (write.ExpectedRevision is { } expectedNew && expectedNew != 0)
+                {
+                    throw new PlannerStoreConflictException(row.Id, 0, expectedNew);
+                }
+
+                db.ProjectGroups.Add(row);
+                AddOutbox(db, "project_group", row.Id, write.Op, row.Revision, row);
+                AddOpLog(db, "project_group", row.Id, write.Op, null, Json(row), write.Actor, write.RequestId, write.Reason);
+            }
+            else
+            {
+                if (write.ExpectedRevision is { } expected && current.Revision != expected)
+                {
+                    throw new PlannerStoreConflictException(row.Id, current.Revision, expected);
+                }
+
+                beforeJson = Json(current);
+                db.Entry(current).CurrentValues.SetValues(row);
+                AddOutbox(db, "project_group", row.Id, write.Op, row.Revision, row);
+                AddOpLog(db, "project_group", row.Id, write.Op, beforeJson, Json(row), write.Actor, write.RequestId, write.Reason);
+            }
+
+            db.SaveChanges();
+            transaction.Commit();
+        }
+        catch (Exception ex) when (IsLocked(ex))
+        {
+            throw new PlannerStoreLockedException(ex);
+        }
+    }
+
+    /// <summary>软删分组：成员关系立即移除，项目本身保留。</summary>
+    public void DeleteProjectGroup(string id, DateTime nowUtc)
+    {
+        using var db = Open();
+        using var transaction = db.Database.BeginTransaction();
+        var group = db.ProjectGroups.FirstOrDefault(g => g.Id == id);
+        if (group is null)
+        {
+            return;
+        }
+
+        foreach (var member in db.ProjectGroupMembers.Where(m => m.ProjectGroupId == id).ToList())
+        {
+            db.ProjectGroupMembers.Remove(member);
+        }
+
+        group.DeletedAt = nowUtc;
+        group.UpdatedAt = nowUtc;
+        group.Revision++;
+        AddOpLog(db, "project_group", id, "delete", null, Json(group), "manual", null, "分组删除，项目保留");
+        db.SaveChanges();
+        transaction.Commit();
+    }
+
+    /// <summary>整体替换项目所属分组；调用方已在事务外做 Id 校验。</summary>
+    private static void ReplaceProjectGroups(PlannerDbContext db, string projectId, IReadOnlyList<string> groupIds)
+    {
+        foreach (var member in db.ProjectGroupMembers.Where(m => m.ProjectId == projectId).ToList())
+        {
+            db.ProjectGroupMembers.Remove(member);
+        }
+
+        var validIds = db.ProjectGroups
+            .Where(g => g.DeletedAt == null && groupIds.Contains(g.Id))
+            .Select(g => g.Id)
+            .Distinct()
+            .ToList();
+
+        foreach (var groupId in validIds)
+        {
+            db.ProjectGroupMembers.Add(new ProjectGroupMemberRow { ProjectGroupId = groupId, ProjectId = projectId });
+        }
+    }
+
     public void WriteProject(ProjectWrite write)
     {
         using var db = Open();
@@ -61,6 +185,11 @@ public sealed partial class PlannerStore
                 db.Entry(current).CurrentValues.SetValues(row);
                 AddOutbox(db, "project", row.Id, write.Op, row.Revision, row);
                 AddOpLog(db, "project", row.Id, write.Op, beforeJson, Json(row), write.Actor, write.RequestId, write.Reason);
+            }
+
+            if (write.GroupIds is not null)
+            {
+                ReplaceProjectGroups(db, row.Id, write.GroupIds);
             }
 
             db.SaveChanges();
@@ -97,6 +226,11 @@ public sealed partial class PlannerStore
             todo.IterationId = null;
             todo.UpdatedAt = nowUtc;
             todo.Revision++;
+        }
+
+        foreach (var member in db.ProjectGroupMembers.Where(m => m.ProjectId == id).ToList())
+        {
+            db.ProjectGroupMembers.Remove(member);
         }
 
         project.DeletedAt = nowUtc;

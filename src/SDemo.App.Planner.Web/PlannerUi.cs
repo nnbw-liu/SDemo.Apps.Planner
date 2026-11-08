@@ -20,6 +20,10 @@ public sealed class PlannerUi
 
     public TodoDto? ViewingTodo { get; private set; }
 
+    public bool BugEditorOpen { get; private set; }
+
+    public TodoDto? BugParentTodo { get; private set; }
+
     public bool TaskPostponeOpen { get; private set; }
 
     public TodoDto? PostponingTodo { get; private set; }
@@ -37,6 +41,8 @@ public sealed class PlannerUi
     public bool ProjectEditorOpen { get; private set; }
 
     public ProjectDto? EditingProject { get; private set; }
+
+    public bool ProjectGroupsOpen { get; private set; }
 
     public bool IterationEditorOpen { get; private set; }
 
@@ -91,6 +97,20 @@ public sealed class PlannerUi
     {
         ViewingTodo = todo;
         TaskDetailOpen = true;
+        Changed?.Invoke();
+    }
+
+    public void OpenBugEditor(TodoDto parent)
+    {
+        BugParentTodo = parent;
+        BugEditorOpen = true;
+        Changed?.Invoke();
+    }
+
+    public void CloseBugEditor()
+    {
+        BugEditorOpen = false;
+        BugParentTodo = null;
         Changed?.Invoke();
     }
 
@@ -177,6 +197,18 @@ public sealed class PlannerUi
     {
         ProjectEditorOpen = false;
         EditingProject = null;
+        Changed?.Invoke();
+    }
+
+    public void OpenProjectGroups()
+    {
+        ProjectGroupsOpen = true;
+        Changed?.Invoke();
+    }
+
+    public void CloseProjectGroups()
+    {
+        ProjectGroupsOpen = false;
         Changed?.Invoke();
     }
 

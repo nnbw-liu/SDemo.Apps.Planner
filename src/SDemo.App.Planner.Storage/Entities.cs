@@ -93,6 +93,44 @@ public sealed class ProjectRow
     public DateTime? DeletedAt { get; set; }
 }
 
+/// <summary>项目分组：跨项目的集合（例如「产品」「外包」「个人」）。项目与分组多对多。</summary>
+public sealed class ProjectGroupRow
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Color { get; set; } = "#7C8CF8";
+
+    public int Sort { get; set; }
+
+    public int Revision { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+}
+
+/// <summary>项目与分组的成员关系；删除项目/分组时都清理这里。</summary>
+public sealed class ProjectGroupMemberRow
+{
+    public string ProjectGroupId { get; set; } = string.Empty;
+
+    public string ProjectId { get; set; } = string.Empty;
+}
+
+/// <summary>应用级键值设置（MCP 开关等），与业务实体分开，不参与 recycle bin。</summary>
+public sealed class AppSettingRow
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string Value { get; set; } = string.Empty;
+
+    public DateTime UpdatedAt { get; set; }
+}
+
 /// <summary>迭代：大迭代 parent 为空，小迭代挂大迭代；同一项目内两层。</summary>
 public sealed class IterationRow
 {

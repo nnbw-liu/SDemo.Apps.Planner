@@ -168,3 +168,36 @@ window.plannerTheme = {
         this._ref = null;
     }
 };
+
+// 复制到剪贴板：WebView2 里 navigator.clipboard 在部分来源下不可用，退回 execCommand。
+window.plannerClipboard = {
+    async copy(text) {
+        const value = text ?? '';
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(value);
+                return true;
+            }
+        } catch {
+            // 继续走兜底。
+        }
+
+        const area = document.createElement('textarea');
+        area.value = value;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.top = '-1000px';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        area.setSelectionRange(0, area.value.length);
+        let ok = false;
+        try {
+            ok = document.execCommand('copy');
+        } catch {
+            ok = false;
+        }
+        document.body.removeChild(area);
+        return ok;
+    }
+};

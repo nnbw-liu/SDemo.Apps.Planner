@@ -23,6 +23,15 @@
 | 鉴权 | `Authorization: Bearer <token>`，token 来自 `runtime.json`（见 [host-protocol](../../../docs/contracts/host-protocol.md) §4） |
 | 为什么不是 stdio | stdio 意味着「客户端拉起进程」，与「应用常驻、宿主保活」冲突；且同一份 DB 会被两次拉起 |
 
+### 2.1 总开关与逐工具开关（v0.5）
+
+设置页「MCP 服务」写入 `app_setting`：
+
+- `mcp.enabled`：缺省 `true`。关闭后 `tools/list` 返回空数组，任何 `tools/call` 返回 `MCP_DISABLED`，仍写 `mcp_audit`。
+- `mcp.tool.<name>`：缺省 `true`。关闭后该工具不出现在 `tools/list`，直接调用返回 `MCP_TOOL_DISABLED`。
+
+开关只影响新请求，不删除历史审计；重新打开即恢复。
+
 MainAgent 侧的 server 注册项存 `settings.json`：
 
 ```json

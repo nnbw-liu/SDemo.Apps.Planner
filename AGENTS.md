@@ -6,7 +6,16 @@
 
 事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅。
 
-## 现状（2026-11-07）
+## 现状（2026-11-08）
+
+✅ **v0.5 已实现**：项目多分组、MCP 总开关与逐工具开关、迭代说明区自适应、任务说明一键复制、任务列表默认按状态排序、任务派生 Bug。
+- 项目分组（v0.5）：`project_group` + `project_group_member` 多对多；`ProjectDto.Groups`；项目页有分组筛选与「管理分组」弹窗；项目编辑可多选；删除项目/分组会清理成员行。
+- MCP 开关（v0.5）：`app_setting` 里 `mcp.enabled` 与 `mcp.tool.<name>`；总开关关闭时 `tools/list` 为空且调用返回 `MCP_DISABLED`，单工具关闭返回 `MCP_TOOL_DISABLED`；设置页「MCP 服务」可逐项开关。
+- 迭代弹窗（v0.5）：`modal-lg`，开始/结束在说明之前，说明 textarea 置底并用 `field-sizing: content` 自适应高度，正文可滚动。
+- 任务弹窗（v0.5）：备注 `.task-notes` 最小 140px、最高 56vh，随输入长高；任务说明复制按钮紧贴标题。
+- 任务派生 Bug（v0.5）：任务详情「关联 Bug」可多次新建；Bug 用 `ParentTodoId` 挂来源任务，项目/迭代继承；`TodoQuery.ParentTodoId` 可按父任务查子项。
+- 排序（v0.5）：`TodoSort.Status`，doing > open > done > verified > closed > canceled；任务页默认，项目详情直属任务与 Backlog 同序。
+- 迁移（v0.5）：`ProjectGroupsAndSettingsV5`。
 
 ✅ **v4 已实现并实机验证**：在 v3 六状态/完成记录/托盘之上完成更名「事序」、搜索可清除、中国法定节假日联网同步与手动假期管理。
 - 六件套：`Contracts` / `Storage` / `Core` / `Mcp` / `Web` / `Host`，`SDemo.Planner.slnf`。
@@ -28,13 +37,13 @@
 - 迭代下拉显示「大迭代 · 小迭代」，放不下时退化为只显示小迭代（`SelectOption.CompactLabel`）。
 - 迭代可完成/重开；完成大迭代级联小迭代。
 - 日常提醒：固定时间 / 每隔 N 分钟 / 仅一次（`once_at`，到点后自动停用）；30 分钟宽限；`last_fired_at` 去重；右下角非激活 Toast。
-- 提醒卡（v4.6）：独立 WPF 窗口，跟随深浅主题；启动时按系统主题兜底；设置「关于」显示版本 0.4.1。
+- 提醒卡（v4.6）：独立 WPF 窗口，跟随深浅主题；启动时按系统主题兜底；设置「关于」显示版本 0.5.0。
 - 日历节假日：`holiday` 表；`HolidaySyncService` 拉 timor.tech；manual 优先于 remote；月格显示休/班 badge 与名称。
 - 搜索：默认全部状态；支持清空按钮/Esc/任务页「清除」；关键字命中标题、备注、完成说明。
-- 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown`。
+- 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown`；设置页可整体关闭 MCP 或逐工具关闭。
 - 宿主联调、ICS 导入 Outlook 沿用 v1；v2 月历暂不支持拖拽改期。
 - 桌面组件已于 2026-11-07 移除（`WidgetWindow`、`PlannerWidget.razor`、`widget.json` 与 widgets 路由均已删除）。宿主拉起应用时直接显示主窗口；替代方案未定，不要自行加回组件。
-- 验证记录：[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
+- 验证记录：[docs/planner-v05.md](docs/planner-v05.md)、[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
 
 未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；桌面组件（已移除，替代方案待定）；日程拖拽/重复规则；托盘开机自启。
 P5：outbox 合并、ICS 只读订阅。
@@ -77,6 +86,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 
 | 改什么 | 读 |
 | --- | --- |
+| **v0.5 分组/MCP 开关/排序** | [docs/planner-v05.md](docs/planner-v05.md) |
 | **v4 更名/搜索/节假日** | [docs/planner-v4.md](docs/planner-v4.md) |
 | **v3 状态/完成记录/延期/下拉/排序/托盘** | [docs/planner-v3.md](docs/planner-v3.md) |
 | **v2 产品/数据/提醒** | [docs/planner-v2.md](docs/planner-v2.md) |

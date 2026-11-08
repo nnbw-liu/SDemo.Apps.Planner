@@ -35,6 +35,12 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
 
     public DbSet<ProjectRow> Projects => Set<ProjectRow>();
 
+    public DbSet<ProjectGroupRow> ProjectGroups => Set<ProjectGroupRow>();
+
+    public DbSet<ProjectGroupMemberRow> ProjectGroupMembers => Set<ProjectGroupMemberRow>();
+
+    public DbSet<AppSettingRow> AppSettings => Set<AppSettingRow>();
+
     public DbSet<IterationRow> Iterations => Set<IterationRow>();
 
     public DbSet<RoutineRow> Routines => Set<RoutineRow>();
@@ -101,9 +107,41 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.HasIndex(x => x.DeletedAt);
         });
 
-        modelBuilder.Entity<IterationRow>(entity =>
+        modelBuilder.Entity<ProjectGroupRow>(entity =>
         {
-            entity.ToTable("iteration");
+            entity.ToTable("project_group");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id").HasMaxLength(64);
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Color).HasColumnName("color").HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Sort).HasColumnName("sort");
+            entity.Property(x => x.Revision).HasColumnName("revision");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => x.DeletedAt);
+        });
+
+        modelBuilder.Entity<ProjectGroupMemberRow>(entity =>
+        {
+            entity.ToTable("project_group_member");
+            entity.HasKey(x => new { x.ProjectGroupId, x.ProjectId });
+            entity.Property(x => x.ProjectGroupId).HasColumnName("project_group_id").HasMaxLength(64);
+            entity.Property(x => x.ProjectId).HasColumnName("project_id").HasMaxLength(64);
+            entity.HasIndex(x => x.ProjectId);
+        });
+
+        modelBuilder.Entity<AppSettingRow>(entity =>
+        {
+            entity.ToTable("app_setting");
+            entity.HasKey(x => x.Key);
+            entity.Property(x => x.Key).HasColumnName("key").HasMaxLength(100);
+            entity.Property(x => x.Value).HasColumnName("value").HasMaxLength(4000).IsRequired();
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
+        });
+
+        modelBuilder.Entity<IterationRow>(entity =>
+        {            entity.ToTable("iteration");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).HasColumnName("id").HasMaxLength(64);
             entity.Property(x => x.ProjectId).HasColumnName("project_id").HasMaxLength(64).IsRequired();

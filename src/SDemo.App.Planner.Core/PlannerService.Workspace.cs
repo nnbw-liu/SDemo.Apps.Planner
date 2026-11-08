@@ -28,8 +28,9 @@ public sealed partial class PlannerService
 
         var allIterations = _store.QueryIterations();
         var allTodos = _store.QueryProjectTodos();
+        var groups = LoadProjectGroups();
         return projects
-            .Select(p => BuildProject(p, allIterations, allTodos))
+            .Select(p => BuildProject(p, allIterations, allTodos, groups.GetValueOrDefault(p.Id)))
             .ToList();
     }
 
@@ -41,12 +42,13 @@ public sealed partial class PlannerService
             return null;
         }
 
-        return BuildProject(row, _store.QueryIterations(id), _store.QueryProjectTodos());
+        return BuildProject(row, _store.QueryIterations(id), _store.QueryProjectTodos(), GroupsOf(id));
     }
 
     public ProjectDto CreateProject(ProjectInput input, WriteContext context)
     {
         var now = NowUtc();
+        var groupIds = NormalizeGroupIds(input.GroupIds);
         var row = new ProjectRow
         {
             Id = NewId("pj"),
@@ -68,11 +70,12 @@ public sealed partial class PlannerService
             Row = row,
             Op = "create",
             ExpectedRevision = 0,
+            GroupIds = groupIds,
             Actor = ActorOf(context.Source),
             RequestId = context.RequestId,
         });
         RaiseChanged();
-        return PlannerMapper.ToProject(row, []);
+        return PlannerMapper.ToProject(row, [], GroupsByIds(groupIds));
     }
 
     public ProjectDto UpdateProject(string id, int expectedRevision, ProjectPatch patch, WriteContext context)
@@ -139,17 +142,23 @@ public sealed partial class PlannerService
         ValidateProjectDates(updated.StartAt, updated.TargetAt);
         updated.Revision = row.Revision + 1;
         updated.UpdatedAt = NowUtc();
+        var groupIds = patch.GroupIds is null ? null : NormalizeGroupIds(patch.GroupIds);
 
         _store.WriteProject(new ProjectWrite
         {
             Row = updated,
             Op = "update",
             ExpectedRevision = expectedRevision,
+            GroupIds = groupIds,
             Actor = ActorOf(context.Source),
             RequestId = context.RequestId,
         });
         RaiseChanged();
-        return BuildProject(updated, _store.QueryIterations(id), _store.QueryProjectTodos());
+        return BuildProject(
+            updated,
+            _store.QueryIterations(id),
+            _store.QueryProjectTodos(),
+            groupIds is null ? GroupsOf(id) : GroupsByIds(groupIds));
     }
 
     public void DeleteProject(string id, int expectedRevision)
@@ -161,6 +170,114 @@ public sealed partial class PlannerService
         }
 
         _store.DeleteProject(id, NowUtc());
+        RaiseChanged();
+    }
+
+    // ── 项目分组 ──────────────────────────────────────────────────────────
+
+    public IReadOnlyList<ProjectGroupDto> ListProjectGroups()
+    {
+        var rows = _store.QueryProjectGroups();
+        var members = _store.QueryProjectGroupMembers();
+        var projects = _store.QueryProjects().Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+        return rows
+            .Select(g => PlannerMapper.ToProjectGroup(
+                g,
+                members.Count(m => m.ProjectGroupId == g.Id && projects.Contains(m.ProjectId))))
+            .ToList();
+    }
+
+    public ProjectGroupDto CreateProjectGroup(ProjectGroupInput input, WriteContext context)
+    {
+        var now = NowUtc();
+        var row = new ProjectGroupRow
+        {
+            Id = NewId("pg"),
+            Name = RequireTitle(input.Name),
+            Color = NormalizeGroupColor(input.Color),
+            Sort = _store.QueryProjectGroups().Count,
+            Revision = 1,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        _store.WriteProjectGroup(new ProjectGroupWrite
+        {
+            Row = row,
+            Op = "create",
+            ExpectedRevision = 0,
+            Actor = ActorOf(context.Source),
+            RequestId = context.RequestId,
+        });
+        RaiseChanged();
+        return PlannerMapper.ToProjectGroup(row);
+    }
+
+    public ProjectGroupDto UpdateProjectGroup(string id, int expectedRevision, ProjectGroupPatch patch, WriteContext context)
+    {
+        var row = _store.GetProjectGroup(id)
+            ?? throw PlannerException.NotFound($"没有找到分组「{id}」");
+        if (row.Revision != expectedRevision)
+        {
+            throw PlannerException.Conflict(row.Revision);
+        }
+
+        if (patch.IsNoOp)
+        {
+            throw PlannerException.Validation("patch 为空，没有任何要修改的字段");
+        }
+
+        var updated = new ProjectGroupRow
+        {
+            Id = row.Id,
+            Name = row.Name,
+            Color = row.Color,
+            Sort = row.Sort,
+            Revision = row.Revision + 1,
+            CreatedAt = row.CreatedAt,
+            UpdatedAt = NowUtc(),
+            DeletedAt = row.DeletedAt,
+        };
+
+        if (patch.Name is not null)
+        {
+            updated.Name = RequireTitle(patch.Name);
+        }
+
+        if (patch.Color is not null)
+        {
+            updated.Color = NormalizeGroupColor(patch.Color);
+        }
+
+        if (patch.Sort is { } sort)
+        {
+            updated.Sort = sort;
+        }
+
+        _store.WriteProjectGroup(new ProjectGroupWrite
+        {
+            Row = updated,
+            Op = "update",
+            ExpectedRevision = expectedRevision,
+            Actor = ActorOf(context.Source),
+            RequestId = context.RequestId,
+        });
+        RaiseChanged();
+        var projectCount = _store.QueryProjectGroupMembers().Count(m => m.ProjectGroupId == id);
+        return PlannerMapper.ToProjectGroup(updated, projectCount);
+    }
+
+    /// <summary>删除分组只断开成员关系，项目本身保留。</summary>
+    public void DeleteProjectGroup(string id, int expectedRevision)
+    {
+        var row = _store.GetProjectGroup(id)
+            ?? throw PlannerException.NotFound($"没有找到分组「{id}」");
+        if (row.Revision != expectedRevision)
+        {
+            throw PlannerException.Conflict(row.Revision);
+        }
+
+        _store.DeleteProjectGroup(id, NowUtc());
         RaiseChanged();
     }
 
@@ -868,7 +985,8 @@ public sealed partial class PlannerService
     private ProjectDto BuildProject(
         ProjectRow project,
         IReadOnlyList<IterationRow> allIterations,
-        IReadOnlyList<TodoRow> allTodos)
+        IReadOnlyList<TodoRow> allTodos,
+        IReadOnlyList<ProjectGroupDto>? groups = null)
     {
         var rows = allIterations.Where(i => i.ProjectId == project.Id).ToList();
         var todos = allTodos.Where(t => t.ProjectId == project.Id && t.Status != "canceled").ToList();
@@ -879,7 +997,7 @@ public sealed partial class PlannerService
         var open = todos.Where(t => t.Status == "open" || t.Status == "doing").ToList();
         var done = todos.Count(t => IsCompletedStatus(t.Status));
         var nextDue = open.Where(t => t.DueAt is not null).Select(t => t.DueAt).Min();
-        return PlannerMapper.ToProject(project, iterations) with
+        return PlannerMapper.ToProject(project, iterations, groups) with
         {
             TotalTasks = todos.Count,
             DoneTasks = done,
@@ -889,6 +1007,91 @@ public sealed partial class PlannerService
             NextDueAt = nextDue is null ? null : PlannerMapper.ToDto(nextDue),
         };
     }
+
+    /// <summary>一次取全部分组与成员关系，避免每个项目查一次库。</summary>
+    private Dictionary<string, List<ProjectGroupDto>> LoadProjectGroups()
+    {
+        var rows = _store.QueryProjectGroups().ToDictionary(g => g.Id, g => g, StringComparer.Ordinal);
+        var result = new Dictionary<string, List<ProjectGroupDto>>(StringComparer.Ordinal);
+        foreach (var member in _store.QueryProjectGroupMembers())
+        {
+            if (!rows.TryGetValue(member.ProjectGroupId, out var group))
+            {
+                continue;
+            }
+
+            if (!result.TryGetValue(member.ProjectId, out var list))
+            {
+                list = [];
+                result[member.ProjectId] = list;
+            }
+
+            list.Add(PlannerMapper.ToProjectGroup(group));
+        }
+
+        foreach (var list in result.Values)
+        {
+            list.Sort((a, b) => a.Sort != b.Sort ? a.Sort.CompareTo(b.Sort) : a.Name.CompareTo(b.Name));
+        }
+
+        return result;
+    }
+
+    private IReadOnlyList<ProjectGroupDto> GroupsOf(string projectId) =>
+        LoadProjectGroups().GetValueOrDefault(projectId) ?? [];
+
+    private IReadOnlyList<ProjectGroupDto> GroupsByIds(IReadOnlyList<string> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        return _store.QueryProjectGroups()
+            .Where(g => ids.Contains(g.Id))
+            .Select(g => PlannerMapper.ToProjectGroup(g))
+            .ToList();
+    }
+
+    /// <summary>去重并校验分组存在；null/空都视为「不分组」。</summary>
+    private IReadOnlyList<string> NormalizeGroupIds(IReadOnlyList<string>? ids)
+    {
+        if (ids is null || ids.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new List<string>();
+        foreach (var raw in ids)
+        {
+            var id = (raw ?? string.Empty).Trim();
+            if (id.Length == 0 || result.Contains(id))
+            {
+                continue;
+            }
+
+            if (_store.GetProjectGroup(id) is null)
+            {
+                throw PlannerException.Validation($"没有找到分组「{id}」");
+            }
+
+            result.Add(id);
+        }
+
+        return result;
+    }
+
+    private static string NormalizeGroupColor(string? color)
+    {
+        var value = (color ?? string.Empty).Trim();
+        if (value.Length == 7 && value[0] == '#' && value[1..].All(Uri.IsHexDigit))
+        {
+            return value.ToUpperInvariant();
+        }
+
+        return "#7C8CF8";
+    }
+
 
     private IterationDto BuildIteration(
         IterationRow iteration,

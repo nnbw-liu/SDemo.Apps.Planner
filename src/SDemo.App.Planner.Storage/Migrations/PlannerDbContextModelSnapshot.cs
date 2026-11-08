@@ -17,6 +17,28 @@ namespace SDemo.App.Planner.Storage.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("SDemo.App.Planner.Storage.AppSettingRow", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("key");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("app_setting", (string)null);
+                });
+
             modelBuilder.Entity("SDemo.App.Planner.Storage.DraftItemRow", b =>
                 {
                     b.Property<string>("Id")
@@ -578,6 +600,71 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.HasIndex("CreatedAt");
 
                     b.ToTable("outbox", (string)null);
+                });
+
+            modelBuilder.Entity("SDemo.App.Planner.Storage.ProjectGroupMemberRow", b =>
+                {
+                    b.Property<string>("ProjectGroupId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("project_group_id");
+
+                    b.Property<string>("ProjectId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("project_id");
+
+                    b.HasKey("ProjectGroupId", "ProjectId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("project_group_member", (string)null);
+                });
+
+            modelBuilder.Entity("SDemo.App.Planner.Storage.ProjectGroupRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("color");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("sort");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.ToTable("project_group", (string)null);
                 });
 
             modelBuilder.Entity("SDemo.App.Planner.Storage.ProjectRow", b =>

@@ -1,0 +1,196 @@
+@inherits PlannerPageBase
+
+<Modal Title="项目分组" Eyebrow="项目集合" SizeClass="modal-md" OnClose="Close">
+    <ChildContent>
+        <p class="settings-footnote settings-footnote-top">
+            分组用来区分不同种类的项目集合，一个项目可以同时属于多个分组。
+        </p>
+
+        <div class="group-add">
+            <input class="input" placeholder="新分组名称，例如：产品 / 外包 / 个人"
+                   @bind="_newName" @bind:event="oninput" @onkeydown="OnNewKeyDown" />
+            <div class="group-color-row">
+                @foreach (var color in Colors)
+                {
+                    <button type="button" class="color-dot @(_newColor == color ? "selected" : "")"
+                            style="--dot:@color" title="@color" @onclick="() => _newColor = color"></button>
+                }
+            </div>
+            <button class="btn btn-primary btn-sm" @onclick="Create" disabled="@_saving">添加分组</button>
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="form-error">@_error</div>
+        }
+
+        @if (_groups.Count == 0)
+        {
+            <div class="empty-state compact">
+                <strong>还没有分组</strong>
+                <span>先建一个「产品」或「外包」，再把项目放进去。</span>
+            </div>
+        }
+        else
+        {
+            <div class="group-list">
+                @foreach (var group in _groups)
+                {
+                    var current = group;
+                    <div class="group-row" @key="current.Id">
+                        @if (_editingId == current.Id)
+                        {
+                            <div class="group-row-main">
+                                <input class="input" @bind="_editName" @bind:event="oninput" autofocus />
+                                <div class="group-color-row">
+                                    @foreach (var color in Colors)
+                                    {
+                                        <button type="button" class="color-dot @(_editColor == color ? "selected" : "")"
+                                                style="--dot:@color" title="@color" @onclick="() => _editColor = color"></button>
+                                    }
+                                </div>
+                            </div>
+                            <div class="group-row-actions">
+                                <button class="btn btn-ghost btn-sm" @onclick="CancelEdit">取消</button>
+                                <button class="btn btn-primary btn-sm" @onclick="() => SaveEdit(current)" disabled="@_saving">保存</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="group-row-main">
+                                <span class="group-dot" style="--dot:@current.Color"></span>
+                                <strong>@current.Name</strong>
+                                <span class="group-count">@current.ProjectCount 个项目</span>
+                            </div>
+                            <div class="group-row-actions">
+                                @if (_confirmDeleteId == current.Id)
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => _confirmDeleteId = null">取消</button>
+                                    <button class="btn btn-danger btn-sm" @onclick="() => Delete(current)">确认删除</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => StartEdit(current)">编辑</button>
+                                    <button class="btn btn-ghost btn-sm danger-text" @onclick="() => _confirmDeleteId = current.Id">删除</button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <p class="settings-footnote">删除分组不会删除项目，只会把项目从该分组移出。</p>
+        }
+    </ChildContent>
+
+    <Footer>
+        <button class="btn btn-primary" @onclick="Close">完成</button>
+    </Footer>
+</Modal>
+
+@code {
+    private static readonly string[] Colors =
+        ["#7C8CF8", "#4C8DFF", "#37C978", "#F5B74E", "#FF7A59", "#F45B69", "#2BB8C9", "#C06BFF"];
+
+    private IReadOnlyList<ProjectGroupDto> _groups = [];
+    private string _newName = string.Empty;
+    private string _newColor = Colors[0];
+    private string? _editingId;
+    private string _editName = string.Empty;
+    private string _editColor = Colors[0];
+    private string? _confirmDeleteId;
+    private string? _error;
+    private bool _saving;
+
+    protected override void Reload() => _groups = Service.ListProjectGroups();
+
+    private void Close() => Ui.CloseProjectGroups();
+
+    private void OnNewKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            Create();
+        }
+    }
+
+    private void Create()
+    {
+        if (string.IsNullOrWhiteSpace(_newName))
+        {
+            _error = "分组名称不能为空。";
+            return;
+        }
+
+        Run(() =>
+        {
+            Service.CreateProjectGroup(
+                new ProjectGroupInput { Name = _newName.Trim(), Color = _newColor },
+                WriteContext.Manual());
+            _newName = string.Empty;
+            Ui.Toast("分组已添加");
+        });
+    }
+
+    private void StartEdit(ProjectGroupDto group)
+    {
+        _editingId = group.Id;
+        _editName = group.Name;
+        _editColor = group.Color;
+        _confirmDeleteId = null;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _error = null;
+    }
+
+    private void SaveEdit(ProjectGroupDto group)
+    {
+        if (string.IsNullOrWhiteSpace(_editName))
+        {
+            _error = "分组名称不能为空。";
+            return;
+        }
+
+        Run(() =>
+        {
+            Service.UpdateProjectGroup(
+                group.Id,
+                group.Revision,
+                new ProjectGroupPatch { Name = _editName.Trim(), Color = _editColor },
+                WriteContext.Manual());
+            _editingId = null;
+            Ui.Toast("分组已更新");
+        });
+    }
+
+    private void Delete(ProjectGroupDto group)
+    {
+        Run(() =>
+        {
+            Service.DeleteProjectGroup(group.Id, group.Revision);
+            _confirmDeleteId = null;
+            Ui.Toast("分组已删除，项目已保留");
+        });
+    }
+
+    private void Run(Action action)
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            action();
+        }
+        catch (Exception ex) when (ex is PlannerException or ArgumentException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -26,6 +26,29 @@
             </div>
         </div>
 
+        <div class="field field-full">
+            <span>所属分组 <small class="field-hint">可多选</small></span>
+            @if (_groups.Count == 0)
+            {
+                <span class="field-empty">还没有分组；到项目页的「分组」里创建后就能选。</span>
+            }
+            else
+            {
+                <div class="group-check-row">
+                    @foreach (var group in _groups)
+                    {
+                        <label class="group-check @(_selectedGroupIds.Contains(group.Id) ? "active" : "")">
+                            <input type="checkbox"
+                                   checked="@_selectedGroupIds.Contains(group.Id)"
+                                   @onchange="e => ToggleGroup(group.Id, e)" />
+                            <span class="group-dot" style="--dot:@group.Color"></span>
+                            @group.Name
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+
         <label class="field">
             <span>开始日期</span>
             <input class="input" type="date" value="@_startDate" @onchange="e => _startDate = DateValue(e)" />
@@ -73,6 +96,8 @@
     private string _startDate = string.Empty;
     private string _targetDate = string.Empty;
     private ProjectStatus _status = ProjectStatus.Active;
+    private IReadOnlyList<ProjectGroupDto> _groups = [];
+    private HashSet<string> _selectedGroupIds = new(StringComparer.Ordinal);
     private bool _saving;
     private string? _error;
 
@@ -83,6 +108,8 @@
         new(ProjectStatus.Done, "已完成"),
         new(ProjectStatus.Archived, "已归档"),
     ];
+
+    protected override void Reload() => _groups = Service.ListProjectGroups();
 
     protected override void OnInitialized()
     {
@@ -95,6 +122,19 @@
             _status = project.Status;
             _startDate = project.StartAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? string.Empty;
             _targetDate = project.TargetAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? string.Empty;
+            _selectedGroupIds = project.Groups.Select(g => g.Id).ToHashSet(StringComparer.Ordinal);
+        }
+    }
+
+    private void ToggleGroup(string groupId, ChangeEventArgs args)
+    {
+        if (args.Value is true)
+        {
+            _selectedGroupIds.Add(groupId);
+        }
+        else
+        {
+            _selectedGroupIds.Remove(groupId);
         }
     }
 
@@ -126,6 +166,7 @@
                         ClearDescription = string.IsNullOrWhiteSpace(_description),
                         Color = _color,
                         Status = _status,
+                        GroupIds = _selectedGroupIds.ToList(),
                         StartAt = start,
                         ClearStartAt = start is null,
                         TargetAt = target,
@@ -142,6 +183,7 @@
                         Name = _name.Trim(),
                         Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
                         Color = _color,
+                        GroupIds = _selectedGroupIds.ToList(),
                         StartAt = start,
                         TargetAt = target,
                     },

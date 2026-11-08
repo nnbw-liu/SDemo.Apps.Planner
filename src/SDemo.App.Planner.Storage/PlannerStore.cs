@@ -143,6 +143,11 @@ public sealed partial class PlannerStore
             query = query.Where(t => t.IterationId == iterationId);
         }
 
+        if (filter.ParentTodoId is { Length: > 0 } parentTodoId)
+        {
+            query = query.Where(t => t.ParentTodoId == parentTodoId);
+        }
+
         if (filter.Kind is { Length: > 0 } kind)
         {
             query = query.Where(t => t.Kind == kind);
@@ -211,6 +216,16 @@ public sealed partial class PlannerStore
                 .ThenByDescending(t => t.UpdatedAt),
             "updated" => grouped.ThenByDescending(t => t.UpdatedAt),
             "created" => grouped.ThenByDescending(t => t.CreatedAt),
+            "status" => grouped
+                .ThenBy(t => t.Status == "doing" ? 0
+                    : t.Status == "open" ? 1
+                    : t.Status == "done" ? 2
+                    : t.Status == "verified" ? 3
+                    : t.Status == "closed" ? 4
+                    : 5)
+                .ThenBy(t => t.DueAt == null)
+                .ThenBy(t => t.DueAt)
+                .ThenByDescending(t => t.UpdatedAt),
             _ => grouped
                 .ThenBy(t => t.DueAt == null)
                 .ThenBy(t => t.DueAt)

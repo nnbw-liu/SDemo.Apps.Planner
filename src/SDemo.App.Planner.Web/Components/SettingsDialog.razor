@@ -6,58 +6,121 @@
     <ChildContent>
         <div class="settings-shell">
             <nav class="settings-nav">
-                <button class="settings-nav-item active" type="button">
+                <button class="settings-nav-item @(_section == "general" ? "active" : "")" type="button" @onclick="ShowGeneral">
                     <Icon Name="settings" Size="15" />
                     <span>通用设置</span>
                 </button>
-                <p class="settings-nav-note">更多分组之后再加。</p>
+                <button class="settings-nav-item @(_section == "mcp" ? "active" : "")" type="button" @onclick="ShowMcp">
+                    <Icon Name="layers" Size="15" />
+                    <span>MCP 服务</span>
+                </button>
             </nav>
 
             <div class="settings-body">
-                <section class="settings-section">
-                    <header class="settings-section-head">
-                        <h3>外观</h3>
-                        <p>默认跟随系统外观；切换后立即生效，下次启动沿用。</p>
-                    </header>
+                @if (_section == "general")
+                {
+                    <section class="settings-section">
+                        <header class="settings-section-head">
+                            <h3>外观</h3>
+                            <p>默认跟随系统外观；切换后立即生效，下次启动沿用。</p>
+                        </header>
 
-                    <div class="theme-options">
-                        @foreach (var option in Options)
+                        <div class="theme-options">
+                            @foreach (var option in Options)
+                            {
+                                <button type="button"
+                                        class="theme-option @(Theme.Mode == option.Mode ? "active" : "")"
+                                        @onclick="() => SetMode(option.Mode)">
+                                    <span class="theme-option-icon"><Icon Name="@option.Icon" Size="18" /></span>
+                                    <span class="theme-option-text">
+                                        <strong>@option.Label</strong>
+                                        <small>@option.Hint</small>
+                                    </span>
+                                    @if (Theme.Mode == option.Mode)
+                                    {
+                                        <Icon Name="check" Size="15" Class="theme-option-check" />
+                                    }
+                                </button>
+                            }
+                        </div>
+
+                        <p class="settings-footnote">
+                            当前实际显示：@(Theme.IsDark ? "深色" : "浅色")。
+                            标题栏会跟着一起换色。
+                        </p>
+                    </section>
+
+                    <section class="settings-section settings-about">
+                        <header class="settings-section-head">
+                            <h3>关于</h3>
+                            <p>当前安装版本；升级后这里会随程序更新。</p>
+                        </header>
+
+                        <div class="settings-version">
+                            <span class="settings-version-label">当前版本</span>
+                            <span class="settings-version-number">v@(PlannerConstants.AppVersion)</span>
+                        </div>
+
+                        <p class="settings-footnote">宿主 API @(PlannerConstants.HostApiVersion)。</p>
+                    </section>
+                }
+                else
+                {
+                    <section class="settings-section">
+                        <header class="settings-section-head">
+                            <h3>MCP 服务</h3>
+                            <p>总开关关闭时，所有工具既不出现在工具列表，也无法被调用；逐项开关可以单独收敛权限。</p>
+                        </header>
+
+                        @if (_mcpError is not null)
                         {
-                            <button type="button"
-                                    class="theme-option @(Theme.Mode == option.Mode ? "active" : "")"
-                                    @onclick="() => SetMode(option.Mode)">
-                                <span class="theme-option-icon"><Icon Name="@option.Icon" Size="18" /></span>
-                                <span class="theme-option-text">
-                                    <strong>@option.Label</strong>
-                                    <small>@option.Hint</small>
-                                </span>
-                                @if (Theme.Mode == option.Mode)
-                                {
-                                    <Icon Name="check" Size="15" Class="theme-option-check" />
-                                }
-                            </button>
+                            <p class="form-error">@_mcpError</p>
                         }
-                    </div>
 
-                    <p class="settings-footnote">
-                        当前实际显示：@(Theme.IsDark ? "深色" : "浅色")。
-                        标题栏会跟着一起换色。
-                    </p>
-                </section>
+                        <div class="settings-master @(_mcp.Enabled ? "" : "is-off")">
+                            <div>
+                                <strong>启用 MCP 服务</strong>
+                                <small>@(_mcp.Enabled ? "外部助手可以按下方开关访问事序。" : "已对外关闭，工具列表为空。")</small>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" checked="@_mcp.Enabled" @onchange="ToggleMcp" />
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>
 
-                <section class="settings-section settings-about">
-                    <header class="settings-section-head">
-                        <h3>关于</h3>
-                        <p>当前安装版本；升级后这里会随程序更新。</p>
-                    </header>
+                        <div class="settings-tool-list @(_mcp.Enabled ? "" : "is-disabled")">
+                            @foreach (var tool in _mcp.Tools)
+                            {
+                                var current = tool;
+                                <div class="settings-tool">
+                                    <div class="settings-tool-main">
+                                        <div class="settings-tool-title">
+                                            <code>@current.Name</code>
+                                            <span class="settings-tool-label">@current.Label</span>
+                                            <span class="risk-badge risk-@current.Risk.ToString().ToLowerInvariant()">@RiskLabel(current.Risk)</span>
+                                            @if (current.ReadOnly)
+                                            {
+                                                <span class="tag-mini">只读</span>
+                                            }
+                                        </div>
+                                        <p>@current.Description</p>
+                                    </div>
+                                    <label class="toggle">
+                                        <input type="checkbox"
+                                               checked="@current.Enabled"
+                                               disabled="@(!_mcp.Enabled)"
+                                               @onchange="e => ToggleTool(current.Name, e)" />
+                                        <span class="toggle-track"></span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
 
-                    <div class="settings-version">
-                        <span class="settings-version-label">当前版本</span>
-                        <span class="settings-version-number">v@(PlannerConstants.AppVersion)</span>
-                    </div>
-
-                    <p class="settings-footnote">宿主 API @(PlannerConstants.HostApiVersion)。</p>
-                </section>
+                        <p class="settings-footnote">
+                            写操作仍会走审批与审计；关闭开关不会删除历史审计记录。
+                        </p>
+                    </section>
+                }
             </div>
         </div>
     </ChildContent>
@@ -71,6 +134,19 @@
         new(ThemeMode.Dark, "moon", "深色", "默认的深色界面，适合夜间"),
     };
 
+    private string _section = "general";
+    private McpSettingsDto _mcp = new();
+    private string? _mcpError;
+
+    protected override void Reload()
+    {
+        _mcp = Service.GetMcpSettings();
+    }
+
+    private void ShowGeneral() => _section = "general";
+
+    private void ShowMcp() => _section = "mcp";
+
     private async Task SetMode(ThemeMode mode)
     {
         if (Theme.Mode == mode)
@@ -81,6 +157,38 @@
         await Theme.SetModeAsync(mode);
         StateHasChanged();
     }
+
+    private void ToggleMcp(ChangeEventArgs args)
+    {
+        var enabled = args.Value is true;
+        Apply(() => _mcp = Service.SetMcpEnabled(enabled));
+    }
+
+    private void ToggleTool(string name, ChangeEventArgs args)
+    {
+        var enabled = args.Value is true;
+        Apply(() => _mcp = Service.SetMcpToolEnabled(name, enabled));
+    }
+
+    private void Apply(Action action)
+    {
+        try
+        {
+            _mcpError = null;
+            action();
+        }
+        catch (PlannerException ex)
+        {
+            _mcpError = ex.Message;
+        }
+    }
+
+    private static string RiskLabel(RiskLevel risk) => risk switch
+    {
+        RiskLevel.High => "高风险",
+        RiskLevel.Medium => "中风险",
+        _ => "低风险",
+    };
 
     private void Close() => Ui.CloseSettings();
 

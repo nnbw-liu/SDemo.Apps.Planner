@@ -19,6 +19,10 @@ public static class ErrorCodes
     /// <summary>MCP 协议层错误（未知工具 / 参数不是合法 JSON / 方法不存在）。</summary>
     public const string UnknownTool = "MCP_UNKNOWN_TOOL";
     public const string BadRequest = "MCP_BAD_REQUEST";
+
+    /// <summary>用户在设置里关闭了 MCP 总开关或某个工具。</summary>
+    public const string McpDisabled = "MCP_DISABLED";
+    public const string McpToolDisabled = "MCP_TOOL_DISABLED";
     public const string Internal = "PLANNER_INTERNAL";
 }
 

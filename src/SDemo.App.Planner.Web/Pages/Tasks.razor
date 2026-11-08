@@ -132,7 +132,7 @@ else
     private string _status = "all";
     private WorkItemKind? _kind;
     private string? _projectId;
-    private TodoSort _sort = TodoSort.Priority;
+    private TodoSort _sort = TodoSort.Status;
     private GroupMode _groupMode = GroupMode.Project;
     private IReadOnlyList<ProjectDto> _projects = [];
     private IReadOnlyList<IterationDto> _iterations = [];
@@ -154,6 +154,7 @@ else
 
     private static readonly IReadOnlyList<SelectOption<TodoSort>> SortOptions =
     [
+        new(TodoSort.Status, "状态"),
         new(TodoSort.Priority, "优先级"),
         new(TodoSort.Due, "截止时间"),
         new(TodoSort.Updated, "最近更新"),
@@ -276,7 +277,7 @@ else
         _status = "all";
         _kind = null;
         _projectId = null;
-        _sort = TodoSort.Priority;
+        _sort = TodoSort.Status;
         Reload();
     }
 

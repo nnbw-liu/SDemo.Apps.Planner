@@ -48,7 +48,10 @@ public static class PlannerMapper
             RestorableUntil = ToDto(row.RestorableUntil),
         };
 
-    public static ProjectDto ToProject(ProjectRow row, IReadOnlyList<IterationDto> iterations) => new()
+    public static ProjectDto ToProject(
+        ProjectRow row,
+        IReadOnlyList<IterationDto> iterations,
+        IReadOnlyList<ProjectGroupDto>? groups = null) => new()
     {
         Id = row.Id,
         Name = row.Name,
@@ -59,9 +62,21 @@ public static class PlannerMapper
         TargetAt = ToDto(row.TargetAt),
         Sort = row.Sort,
         Revision = row.Revision,
+        Groups = groups ?? [],
         Iterations = iterations,
         CreatedAt = ToDto(row.CreatedAt)!.Value,
         UpdatedAt = ToDto(row.UpdatedAt)!.Value,
+    };
+
+    public static ProjectGroupDto ToProjectGroup(ProjectGroupRow row, int projectCount = 0) => new()
+    {
+        Id = row.Id,
+        Name = row.Name,
+        Color = row.Color,
+        Sort = row.Sort,
+        Revision = row.Revision,
+        ProjectCount = projectCount,
+        CreatedAt = ToDto(row.CreatedAt)!.Value,
     };
 
     public static IterationDto ToIteration(

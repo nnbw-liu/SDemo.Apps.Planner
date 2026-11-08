@@ -28,6 +28,17 @@ else
                     <h1>@_project.Name</h1>
                 </div>
             </div>
+            @if (_project.Groups.Count > 0)
+            {
+                <div class="project-hero-groups">
+                    @foreach (var group in _project.Groups)
+                    {
+                        <span class="group-pill">
+                            <span class="group-dot" style="--dot:@group.Color"></span>@group.Name
+                        </span>
+                    }
+                </div>
+            }
             @if (!string.IsNullOrWhiteSpace(_project.Description))
             {
                 <p class="project-desc">@_project.Description</p>
@@ -271,7 +282,7 @@ else
             return _tasks
                 .Where(t => t.IterationId is null || !iterationIds.Contains(t.IterationId))
                 .Where(t => _showDone || !IsTerminal(t.Status))
-                .OrderBy(t => IsTerminal(t.Status))
+                .OrderBy(t => StatusRank(t.Status))
                 .ThenBy(t => t.Priority)
                 .ThenBy(t => t.DueAt is null)
                 .ThenBy(t => t.DueAt)
@@ -291,7 +302,7 @@ else
     private IReadOnlyList<TodoDto> DirectTasks(string iterationId) =>
         _tasks
             .Where(t => t.IterationId == iterationId)
-            .OrderBy(t => IsTerminal(t.Status))
+            .OrderBy(t => StatusRank(t.Status))
             .ThenBy(t => t.Priority)
             .ThenBy(t => t.DueAt is null)
             .ThenBy(t => t.DueAt)
@@ -300,6 +311,16 @@ else
             .ToList();
 
     private bool Collapsed(string iterationId) => _collapsed.Contains(iterationId);
+
+    private static int StatusRank(TodoStatus status) => status switch
+    {
+        TodoStatus.Doing => 0,
+        TodoStatus.Open => 1,
+        TodoStatus.Done => 2,
+        TodoStatus.Verified => 3,
+        TodoStatus.Closed => 4,
+        _ => 5,
+    };
 
     private void ToggleGroup(string iterationId)
     {

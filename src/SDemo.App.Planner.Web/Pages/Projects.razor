@@ -13,12 +13,32 @@
     }
 </div>
 
+<div class="filter-bar wrap group-filter-bar">
+    <span class="filter-label">分组</span>
+    <button class="chip @(_groupId == "all" ? "active" : "")" @onclick="ShowAllGroups">
+        全部
+        <span class="chip-count">@_projects.Count</span>
+    </button>
+    @foreach (var group in _groups)
+    {
+        var current = group;
+        <button class="chip @(_groupId == current.Id ? "active" : "")" @onclick="() => _groupId = current.Id">
+            <span class="group-dot" style="--dot:@current.Color"></span>
+            @current.Name
+            <span class="chip-count">@current.ProjectCount</span>
+        </button>
+    }
+    <button class="btn btn-ghost btn-sm push-right" @onclick="Ui.OpenProjectGroups">
+        <Icon Name="layers" Size="14" /> 管理分组
+    </button>
+</div>
+
 
 @if (Visible.Count == 0)
 {
     <div class="empty-panel">
         <div class="empty-emoji">🗂️</div>
-        <h4>@(_filter == "all" ? "还没有项目" : "这个状态下没有项目")</h4>
+        <h4>@EmptyTitle</h4>
         <p>一个项目可以包含多个大迭代；大迭代下面再拆小迭代，任务、Bug、调研都挂在具体迭代里。</p>
         <button class="btn btn-primary" @onclick="() => Ui.OpenProject()">新建第一个项目</button>
     </div>
@@ -37,6 +57,17 @@ else
                 <a class="project-card-body" href="/projects/@project.Id">
                     <h3>@project.Name</h3>
                     <p>@(string.IsNullOrWhiteSpace(project.Description) ? "还没有项目说明。" : project.Description)</p>
+                    @if (project.Groups.Count > 0)
+                    {
+                        <div class="project-card-groups">
+                            @foreach (var group in project.Groups)
+                            {
+                                <span class="group-pill">
+                                    <span class="group-dot" style="--dot:@group.Color"></span>@group.Name
+                                </span>
+                            }
+                        </div>
+                    }
                     <div class="project-card-progress">
                         <div class="mini-progress"><span style="width:@project.Progress%"></span></div>
                         <span>@project.Progress.ToString("F0")%</span>
@@ -61,7 +92,9 @@ else
 
 @code {
     private string _filter = "all";
+    private string _groupId = "all";
     private IReadOnlyList<ProjectDto> _projects = [];
+    private IReadOnlyList<ProjectGroupDto> _groups = [];
 
     private static readonly (string Key, string Label)[] Filters =
     [
@@ -71,15 +104,39 @@ else
         ("done", "已完成"),
     ];
 
-    private IReadOnlyList<ProjectDto> Visible => _filter switch
+    private IReadOnlyList<ProjectDto> Visible
     {
-        "active" => _projects.Where(p => p.Status == ProjectStatus.Active).ToList(),
-        "paused" => _projects.Where(p => p.Status == ProjectStatus.Paused).ToList(),
-        "done" => _projects.Where(p => p.Status == ProjectStatus.Done).ToList(),
-        _ => _projects,
-    };
+        get
+        {
+            var byStatus = _filter switch
+            {
+                "active" => _projects.Where(p => p.Status == ProjectStatus.Active),
+                "paused" => _projects.Where(p => p.Status == ProjectStatus.Paused),
+                "done" => _projects.Where(p => p.Status == ProjectStatus.Done),
+                _ => _projects,
+            };
 
-    protected override void Reload() => _projects = Service.ListProjects();
+            return _groupId == "all"
+                ? byStatus.ToList()
+                : byStatus.Where(p => p.Groups.Any(g => g.Id == _groupId)).ToList();
+        }
+    }
+
+    private string EmptyTitle => _groupId != "all"
+        ? "这个分组下还没有项目"
+        : _filter == "all" ? "还没有项目" : "这个状态下没有项目";
+
+    protected override void Reload()
+    {
+        _projects = Service.ListProjects();
+        _groups = Service.ListProjectGroups();
+        if (_groupId != "all" && _groups.All(g => g.Id != _groupId))
+        {
+            _groupId = "all";
+        }
+    }
+
+    private void ShowAllGroups() => _groupId = "all";
 
     private int CountFor(string key) => key switch
     {
