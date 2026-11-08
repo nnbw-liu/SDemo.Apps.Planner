@@ -116,6 +116,18 @@ internal static class Program
             return 3;
         }
 
+        HubServer? hub = null;
+        try
+        {
+            hub = new HubServer(PlannerConstants.AppId, token, service, server.Port);
+            hub.StartAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            PlannerLog.Error("Hub 面启动失败，桌面组件不可用", ex);
+            hub = null;
+        }
+
         if (headless)
         {
             using var done = new ManualResetEventSlim(false);
@@ -127,7 +139,18 @@ internal static class Program
             };
 
             PlannerLog.Info($"headless 模式就绪（db={databasePath}）");
-            done.Wait();
+            try
+            {
+                done.Wait();
+            }
+            finally
+            {
+                if (hub is not null)
+                {
+                    hub.StopAsync().GetAwaiter().GetResult();
+                }
+            }
+
             return 0;
         }
 
@@ -143,14 +166,15 @@ internal static class Program
         services.AddScoped<ThemeService>();
         using var provider = services.BuildServiceProvider();
 
-        return RunDesktop(server, service, provider, lifecycle);
+        return RunDesktop(server, service, provider, lifecycle, hub);
     }
 
     private static int RunDesktop(
         AppServer server,
         PlannerService service,
         IServiceProvider services,
-        HostAppLifecycle lifecycle)
+        HostAppLifecycle lifecycle,
+        HubServer? hub)
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         MainWindow? main = null;
@@ -204,6 +228,15 @@ internal static class Program
             main.Activate();
         }
 
+        if (hub is not null)
+        {
+            hub.ShowMainWindow = () => app.Dispatcher.Invoke(() =>
+            {
+                OpenMain();
+                return true;
+            });
+        }
+
         main = new MainWindow(services);
         WireMain(main);
 
@@ -237,6 +270,11 @@ internal static class Program
             reminders.Stop();
             tray?.Dispose();
             tray = null;
+            if (hub is not null)
+            {
+                hub.StopAsync().GetAwaiter().GetResult();
+            }
+
             server.Stop();
             AppServer.DeleteRuntimeFile(PlannerConstants.AppId);
             PlannerLog.Info("应用退出");

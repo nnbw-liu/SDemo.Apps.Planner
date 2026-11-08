@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <!-- 组合根 + WPF：主窗口、桌面组件、app 面 HTTP、runtime.json、宿主注册。 -->
@@ -16,6 +16,8 @@
     <FileVersion>0.5.0.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\planner.ico</ApplicationIcon>
+    <!-- WPF 组合根沿用 BuildServiceProvider 构造桌面 BlazorWebView 的服务集合。 -->
+    <NoWarn>$(NoWarn);ASP0000</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,7 +36,23 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="10.0.110" />
   </ItemGroup>
 
+  <!-- WinExe 不会触发 Web SDK 的 blazor.server.js 静态资产注入（该目标只认 Exe），
+       这里显式从同一运行时的 assets 包取出，内容根仍是 wwwroot。 -->
+  <ItemGroup>
+    <Content Include="$(NuGetPackageRoot)microsoft.aspnetcore.app.internal.assets\$(BundledNETCoreAppPackageVersion)\_framework\blazor.server.js"
+             Link="wwwroot\_framework\blazor.server.js"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Razor SDK 会把 wwwroot 作为静态 Web 资产，BlazorWebView 才能提供
-       _framework/blazor.webview.js 与本地 css。 -->
+       _framework/blazor.webview.js 与本地 css。Debug 输出默认只走静态资产清单，
+       不会把 wwwroot 复制到 bin；HubServer 的内容根是 AppContext.BaseDirectory，
+       所以这里显式复制，保证 F5/VS 调试与 publish 行为一致。 -->
+  <ItemGroup>
+    <Content Update="wwwroot\**\*"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

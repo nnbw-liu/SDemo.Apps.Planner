@@ -1,0 +1,63 @@
+@inherits LayoutComponentBase
+
+<div class="widget-shell">
+    @Body
+</div>
+
+@if (Ui.TaskDetailOpen)
+{
+    <TaskDetailDialog />
+}
+@if (Ui.BugEditorOpen)
+{
+    <BugEditor />
+}
+@if (Ui.TaskPostponeOpen)
+{
+    <TaskPostponeDialog />
+}
+@if (Ui.TaskEditorOpen)
+{
+    <TaskEditor />
+}
+@if (Ui.CompleteTaskOpen)
+{
+    <CompleteTaskDialog />
+}
+@if (Ui.ProjectEditorOpen)
+{
+    <ProjectEditor />
+}
+@if (Ui.ProjectGroupsOpen)
+{
+    <ProjectGroupManager />
+}
+@if (Ui.IterationEditorOpen)
+{
+    <IterationEditor />
+}
+@if (Ui.RoutineEditorOpen)
+{
+    <RoutineEditor />
+}
+@if (Ui.EventEditorOpen)
+{
+    <EventEditor />
+}
+@if (Ui.SettingsOpen)
+{
+    <SettingsDialog />
+}
+
+<ToastHost />
+
+@code {
+    [Inject]
+    private PlannerUi Ui { get; set; } = default!;
+
+    protected override void OnInitialized() => Ui.Changed += OnUiChanged;
+
+    private void OnUiChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Ui.Changed -= OnUiChanged;
+}
