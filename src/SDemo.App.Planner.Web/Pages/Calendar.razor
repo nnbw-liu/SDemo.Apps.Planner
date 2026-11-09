@@ -3,24 +3,25 @@
 
 <PageTitle>日历 · 事序</PageTitle>
 
-<div class="page-toolbar">
-    <div class="calendar-nav">
-        <button class="icon-btn" title="上个月" @onclick="() => Move(-1)"><Icon Name="chevron-right" Size="16" class="flip" /></button>
-        <button class="btn btn-ghost btn-sm" @onclick="Today">今天</button>
-        <button class="icon-btn" title="下个月" @onclick="() => Move(1)"><Icon Name="chevron-right" Size="16" /></button>
-        <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenEvent(date: _selected)"><Icon Name="calendar" Size="14" /> 日程</button>
-        <button class="btn btn-ghost btn-sm" @onclick="() => _holidayOpen = true"><Icon Name="calendar" Size="14" /> 假期</button>
-    </div>
-</div>
+<section class="card calendar-card @(Compact ? "calendar-compact" : "")">
+    <div class="calendar-head">
+        <div class="calendar-heading">
+            <button class="calendar-month" title="回到今天" @onclick="Today">
+                @_month.ToString("yyyy年 M月", CultureInfo.GetCultureInfo("zh-CN"))
+            </button>
+            <div class="calendar-legend">
+                <span><i class="legend-dot task"></i>任务</span>
+                <span><i class="legend-dot event"></i>日程</span>
+                <span><i class="legend-dot done"></i>已完成</span>
+                <span><i class="legend-badge rest">休</i>休息日</span>
+            </div>
+        </div>
 
-<section class="card calendar-card">
-    <div class="calendar-title">
-        <h2>@_month.ToString("yyyy年 M月", CultureInfo.GetCultureInfo("zh-CN"))</h2>
-        <div class="calendar-legend">
-            <span><i class="legend-dot task"></i>任务</span>
-            <span><i class="legend-dot event"></i>日程</span>
-            <span><i class="legend-dot done"></i>已完成</span>
-            <span><i class="legend-badge rest">休</i>休息日</span>
+        <div class="calendar-nav">
+            <button class="icon-btn" title="上个月" @onclick="() => Move(-1)"><Icon Name="chevron-right" Size="16" class="flip" /></button>
+            <button class="icon-btn" title="下个月" @onclick="() => Move(1)"><Icon Name="chevron-right" Size="16" /></button>
+            <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenEvent(date: _selected)"><Icon Name="calendar" Size="14" /> 日程</button>
+            <button class="btn btn-ghost btn-sm" @onclick="() => _holidayOpen = true"><Icon Name="calendar" Size="14" /> 假期</button>
         </div>
     </div>
 
@@ -37,7 +38,9 @@
             var items = ItemsOn(cell.Date);
             var cellHoliday = HolidayOn(cell.Date);
             <button class="calendar-cell @(cell.IsCurrentMonth ? "" : "outside") @(cell.Date == DateTime.Today ? "today" : "") @(cell.Date == _selected ? "selected" : "") @(cell.IsWeekend ? "weekend" : "") @(cellHoliday is null ? "" : (cellHoliday.IsWorkday ? "has-holiday is-workday" : "has-holiday"))"
-                    @onclick="() => Select(cell.Date)">
+                    title="@(Compact ? "双击查看当天安排" : "点击查看当天安排")"
+                    @onclick="() => Select(cell.Date)"
+                    @ondblclick="() => OpenDay(cell.Date)">
                 <div class="calendar-cell-head">
                     <span class="day-number">@cell.Date.Day</span>
                     @if (cellHoliday is not null)
@@ -58,7 +61,7 @@
                     {
                         <span class="cell-holiday-name @(cellHoliday.IsWorkday ? "work" : "rest")">@cellHoliday.Name</span>
                     }
-                    @foreach (var item in items.Take(3))
+                    @foreach (var item in items.Take(MaxCellItems))
                     {
                         <span class="calendar-item @item.Class @(item.Done ? "done" : "")">
                             @if (item.Kind == CalendarItemKind.Event)
@@ -72,9 +75,9 @@
                             <span>@item.Title</span>
                         </span>
                     }
-                    @if (items.Count > 3)
+                    @if (items.Count > MaxCellItems)
                     {
-                        <span class="calendar-more">+@(items.Count - 3) 更多</span>
+                        <span class="calendar-more">+@(items.Count - MaxCellItems) 更多</span>
                     }
                 </div>
                 <span class="cell-add" title="在这天新建任务"
@@ -87,56 +90,118 @@
     </div>
 </section>
 
-<section class="day-agenda card">
-    <header class="card-head">
-        <div>
-            <span class="eyebrow">@_selected.ToString("dddd", CultureInfo.GetCultureInfo("zh-CN"))</span>
-            <h3>@_selected.ToString("M月d日")</h3>
-            @if (HolidayOn(_selected) is { } todayHoliday)
-            {
-                <span class="holiday-chip @(todayHoliday.IsWorkday ? "work" : "rest")">
-                    @(todayHoliday.IsWorkday ? "班" : "休") · @todayHoliday.Name
-                </span>
-            }
-        </div>
-        <span class="muted">@SelectedTasks.Count 个任务 · @SelectedEvents.Count 个日程</span>
-    </header>
-
-    @if (SelectedTasks.Count == 0 && SelectedEvents.Count == 0)
-    {
-        <div class="empty-inline">
-            <span class="empty-emoji">🌤️</span>
+@if (!Compact)
+{
+    <section class="day-agenda card">
+        <header class="card-head">
             <div>
-                <strong>这一天是空的</strong>
-                <p>没有任务和日程。留白也可以，或者现在加一件事。</p>
+                <span class="eyebrow">@_selected.ToString("dddd", CultureInfo.GetCultureInfo("zh-CN"))</span>
+                <h3>@_selected.ToString("M月d日")</h3>
+                @if (HolidayOn(_selected) is { } todayHoliday)
+                {
+                    <span class="holiday-chip @(todayHoliday.IsWorkday ? "work" : "rest")">
+                        @(todayHoliday.IsWorkday ? "班" : "休") · @todayHoliday.Name
+                    </span>
+                }
             </div>
-            <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenTask()">添加任务</button>
-        </div>
-    }
-    else
-    {
-        <div class="agenda">
-            @foreach (var evt in SelectedEvents)
-            {
-                <div class="event-row event-row-click" @onclick="() => Ui.OpenEvent(evt)" role="button" tabindex="0">
-                    <div class="event-time">
-                        <strong>@evt.StartAt.ToLocalTime().ToString("HH:mm")</strong>
-                        <span>@evt.EndAt.ToLocalTime().ToString("HH:mm")</span>
+            <span class="muted">@SelectedTasks.Count 个任务 · @SelectedEvents.Count 个日程</span>
+        </header>
+
+        @if (SelectedTasks.Count == 0 && SelectedEvents.Count == 0)
+        {
+            <div class="empty-inline">
+                <span class="empty-emoji">🌤️</span>
+                <div>
+                    <strong>这一天是空的</strong>
+                    <p>没有任务和日程。留白也可以，或者现在加一件事。</p>
+                </div>
+                <button class="btn btn-ghost btn-sm" @onclick="() => Ui.OpenTask()">添加任务</button>
+            </div>
+        }
+        else
+        {
+            <div class="agenda">
+                @foreach (var evt in SelectedEvents)
+                {
+                    <div class="event-row event-row-click" @onclick="() => Ui.OpenEvent(evt)" role="button" tabindex="0">
+                        <div class="event-time">
+                            <strong>@evt.StartAt.ToLocalTime().ToString("HH:mm")</strong>
+                            <span>@evt.EndAt.ToLocalTime().ToString("HH:mm")</span>
+                        </div>
+                        <div class="event-line"></div>
+                        <div class="event-main">
+                            <strong>@evt.Title</strong>
+                            <small>@(string.IsNullOrWhiteSpace(evt.Location) ? "日程" : evt.Location)</small>
+                        </div>
                     </div>
-                    <div class="event-line"></div>
-                    <div class="event-main">
-                        <strong>@evt.Title</strong>
-                        <small>@(string.IsNullOrWhiteSpace(evt.Location) ? "日程" : evt.Location)</small>
+                }
+                @foreach (var todo in SelectedTasks)
+                {
+                    <TaskRow Todo="todo" ShowProject="true" />
+                }
+            </div>
+        }
+    </section>
+}
+
+@if (Compact && _dayOpen)
+{
+    <Modal Title="@DayTitle" Eyebrow="当天安排" SizeClass="modal-md" OnClose="CloseDay">
+        <ChildContent>
+            <div class="calendar-day-summary">
+                @if (HolidayOn(_selected) is { } dayHoliday)
+                {
+                    <span class="holiday-chip @(dayHoliday.IsWorkday ? "work" : "rest")">
+                        @(dayHoliday.IsWorkday ? "班" : "休") · @dayHoliday.Name
+                    </span>
+                }
+                <span class="muted">@SelectedTasks.Count 个任务 · @SelectedEvents.Count 个日程</span>
+            </div>
+
+            @if (SelectedTasks.Count == 0 && SelectedEvents.Count == 0)
+            {
+                <div class="empty-inline">
+                    <span class="empty-emoji">🌤️</span>
+                    <div>
+                        <strong>这一天是空的</strong>
+                        <p>没有任务和日程。留白也可以，或者现在加一件事。</p>
                     </div>
                 </div>
             }
-            @foreach (var todo in SelectedTasks)
+            else
             {
-                <TaskRow Todo="todo" ShowProject="true" />
+                <div class="calendar-day-list">
+                    @foreach (var evt in SelectedEvents)
+                    {
+                        <button class="calendar-day-item event" @onclick="() => EditEvent(evt)">
+                            <span class="calendar-day-time">@evt.StartAt.ToLocalTime().ToString("HH:mm")</span>
+                            <i class="legend-dot event"></i>
+                            <span class="calendar-day-main">
+                                <strong>@evt.Title</strong>
+                                <small>@(string.IsNullOrWhiteSpace(evt.Location) ? "日程" : evt.Location)</small>
+                            </span>
+                        </button>
+                    }
+                    @foreach (var todo in SelectedTasks)
+                    {
+                        <button class="calendar-day-item task @(IsDone(todo) ? "is-done" : "")" @onclick="() => ShowTask(todo)">
+                            <span class="calendar-day-time">@(todo.DueAt?.ToLocalTime().ToString("HH:mm") ?? "全天")</span>
+                            <i class="legend-dot" style="--dot:@(todo.ProjectColor ?? "#4C8DFF"); background:var(--dot)"></i>
+                            <span class="calendar-day-main">
+                                <strong>@todo.Title</strong>
+                                <small>@(todo.ProjectName ?? "事序") · @StatusLabelOf(todo.Status)</small>
+                            </span>
+                        </button>
+                    }
+                </div>
             }
-        </div>
-    }
-</section>
+        </ChildContent>
+        <Footer>
+            <button class="btn btn-ghost btn-sm push-right" @onclick="AddEventForSelected"><Icon Name="calendar" Size="14" /> 加日程</button>
+            <button class="btn btn-primary btn-sm" @onclick="AddTaskForSelected"><Icon Name="plus" Size="14" /> 新建任务</button>
+        </Footer>
+    </Modal>
+}
 
 @if (_holidayOpen)
 {
@@ -146,12 +211,21 @@
 @code {
     private static readonly string[] Weekdays = ["一", "二", "三", "四", "五", "六", "日"];
 
+    /// <summary>组件模式：每格少显示一条，把六周整月压进一屏。</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
     private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _selected = DateTime.Today;
     private IReadOnlyList<TodoDto> _tasks = [];
     private IReadOnlyList<EventDto> _events = [];
     private IReadOnlyDictionary<DateOnly, HolidayDto> _holidays = new Dictionary<DateOnly, HolidayDto>();
     private bool _holidayOpen;
+    private bool _dayOpen;
+
+    private int MaxCellItems => Compact ? 2 : 3;
+
+    private string DayTitle => _selected.ToString("M月d日 dddd", CultureInfo.GetCultureInfo("zh-CN"));
 
     private IReadOnlyList<CalendarCell> Cells
     {
@@ -236,11 +310,62 @@
         }
     }
 
+    private void OpenDay(DateTime date)
+    {
+        if (!Compact)
+        {
+            Select(date);
+            return;
+        }
+
+        Select(date);
+        _dayOpen = true;
+    }
+
+    private void CloseDay() => _dayOpen = false;
+
     private void AddTask(DateTime date)
     {
         _selected = date;
         Ui.OpenTask(dueDate: date.Date);
     }
+
+    private void AddTaskForSelected()
+    {
+        _dayOpen = false;
+        Ui.OpenTask(dueDate: _selected.Date);
+    }
+
+    private void AddEventForSelected()
+    {
+        _dayOpen = false;
+        Ui.OpenEvent(date: _selected.Date);
+    }
+
+    private void EditEvent(EventDto evt)
+    {
+        _dayOpen = false;
+        Ui.OpenEvent(evt);
+    }
+
+    private void ShowTask(TodoDto todo)
+    {
+        _dayOpen = false;
+        Ui.OpenTaskDetail(todo);
+    }
+
+    private static bool IsDone(TodoDto todo) =>
+        todo.Status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed;
+
+    private static string StatusLabelOf(TodoStatus status) => status switch
+    {
+        TodoStatus.Doing => "进行中",
+        TodoStatus.Done => "已完成",
+        TodoStatus.Verified => "已验证",
+        TodoStatus.Closed => "已关闭",
+        TodoStatus.Canceled => "已取消",
+        _ => "新建",
+    };
 
     private IReadOnlyList<CalendarItem> ItemsOn(DateTime date)
     {

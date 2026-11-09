@@ -1798,21 +1798,44 @@ p { margin: 0; }
 
 /* ── 日历 ─────────────────────────────────────────────────────────────── */
 
-.calendar-nav { display: flex; align-items: center; gap: 5px; }
+.calendar-nav { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .calendar-card { padding: 17px; }
-.calendar-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; padding: 0 3px; }
-.calendar-title h2 { font-size: 17px; }
-.calendar-legend { display: flex; gap: 12px; color: var(--faint); font-size: 9.5px; }
+.calendar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-bottom: 14px;
+    padding: 0 3px;
+}
+.calendar-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; min-width: 0; }
+.calendar-month {
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    cursor: pointer;
+}
+.calendar-month:hover { color: var(--accent); }
+.calendar-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--faint); font-size: 10.5px; }
 .calendar-legend span { display: inline-flex; align-items: center; gap: 4px; }
-.legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+.legend-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
 .legend-dot.task { background: var(--accent); }
 .legend-dot.event { background: var(--accent-2); }
 .legend-dot.done { background: var(--green); }
-.legend-badge { display: inline-grid; place-items: center; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 4px; font-style: normal; font-size: 8px; line-height: 1; }
+.legend-badge { display: inline-grid; place-items: center; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 4px; font-style: normal; font-size: 9px; line-height: 1; }
 .legend-badge.rest { color: #909db4; background: rgba(var(--wash-rgb), 0.06); }
 
-.calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 1px 6px; }
-.calendar-weekdays span { padding-left: 7px; color: var(--faint); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+.calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 1px 7px; }
+.calendar-weekdays span { padding-left: 8px; color: var(--faint); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
 
 .calendar-grid {
     display: grid;
@@ -1829,8 +1852,8 @@ p { margin: 0; }
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-height: 104px;
-    padding: 7px;
+    min-height: 106px;
+    padding: 8px;
     border: 0;
     background: var(--surface-sunken);
     text-align: left;
@@ -1849,9 +1872,9 @@ p { margin: 0; }
 .calendar-cell.selected { background: rgba(109, 141, 255, 0.105); box-shadow: inset 0 0 0 1px rgba(109, 141, 255, 0.34); }
 .calendar-cell.today .day-number { color: #fff; background: var(--accent); }
 .calendar-cell-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.day-number { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: var(--text-soft); font-size: 10.5px; }
-.today-label { color: var(--accent); font-size: 8px; }
-.calendar-cell-items { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.day-number { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: var(--text-soft); font-size: 12px; }
+.today-label { color: var(--accent); font-size: 9.5px; }
+.calendar-cell-items { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .cell-add {
     position: absolute;
     right: 6px;
@@ -1874,32 +1897,63 @@ p { margin: 0; }
 .calendar-item {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     min-width: 0;
-    padding: 2px 4px;
+    padding: 2px 5px;
     border-radius: 4px;
     background: rgba(var(--wash-rgb), 0.038);
     color: var(--text-soft);
-    font-size: 8.8px;
+    font-size: 11px;
     line-height: 1.5;
 }
 .calendar-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.calendar-item.event { background: rgba(167, 139, 250, 0.12); color: #c9b8ff; }
+.calendar-item.event { background: rgba(167, 139, 250, 0.12); color: var(--accent-2); }
 .calendar-item.done { opacity: 0.45; text-decoration: line-through; }
-.item-dot { width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: var(--dot, var(--accent)); }
-.item-time { flex: 0 0 auto; color: #b9a7ff; font-size: 8px; font-style: normal; }
-.calendar-more { padding-left: 3px; color: var(--faint); font-size: 8px; }
+.item-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--dot, var(--accent)); }
+.item-time { flex: 0 0 auto; color: var(--accent-2); font-size: 10px; font-style: normal; }
+.calendar-more { padding-left: 3px; color: var(--faint); font-size: 10px; }
 
+/* 底部当天安排（主应用，组件里不渲染） */
 .day-agenda { margin-top: 15px; }
 .event-row { display: flex; align-items: flex-start; gap: 12px; padding: 9px 7px; }
 .event-row-click { border-radius: 9px; cursor: pointer; transition: background 0.15s ease; }
 .event-row-click:hover { background: rgba(var(--wash-rgb), 0.04); }
-.event-time { display: flex; flex-direction: column; width: 42px; flex: 0 0 auto; text-align: right; }
-.event-time strong { font-size: 11px; font-weight: 500; }
-.event-time span { color: var(--faint); font-size: 9px; }
+.event-time { display: flex; flex-direction: column; width: 46px; flex: 0 0 auto; text-align: right; }
+.event-time strong { font-size: 11.5px; font-weight: 500; }
+.event-time span { color: var(--faint); font-size: 10px; }
 .event-line { width: 2px; align-self: stretch; border-radius: 2px; background: rgba(167, 139, 250, 0.5); }
-.event-main strong { display: block; font-size: 12.5px; font-weight: 500; }
-.event-main small { color: var(--faint); font-size: 9.5px; }
+.event-main strong { display: block; font-size: 13px; font-weight: 500; }
+.event-main small { color: var(--faint); font-size: 10.5px; }
+
+/* 双击某天后弹出的当天安排（组件） */
+.calendar-day-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 2px 0 12px; }
+.calendar-day-summary .holiday-chip { margin-top: 0; font-size: 11.5px; }
+.calendar-day-summary .muted { font-size: 12px; }
+.calendar-day-list { display: flex; flex-direction: column; gap: 5px; }
+.calendar-day-item {
+    display: grid;
+    grid-template-columns: 46px 8px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: rgba(var(--wash-rgb), 0.03);
+    color: var(--text-soft);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease;
+}
+.calendar-day-item:hover { border-color: rgba(var(--wash-rgb), 0.13); background: rgba(var(--wash-rgb), 0.06); }
+.calendar-day-time { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
+.calendar-day-item .legend-dot { width: 8px; height: 8px; }
+.calendar-day-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.calendar-day-main strong { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-day-main small { overflow: hidden; color: var(--faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-day-item.event .calendar-day-main strong { color: var(--accent-2); }
+.calendar-day-item.is-done .calendar-day-main strong { color: var(--muted); text-decoration: line-through; }
 
 /* ── 日常页 ───────────────────────────────────────────────────────────── */
 
@@ -2299,7 +2353,7 @@ p { margin: 0; }
     margin-bottom: 2px;
     padding: 1px 4px;
     border-radius: 4px;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
     line-height: 1.5;
     white-space: nowrap;
