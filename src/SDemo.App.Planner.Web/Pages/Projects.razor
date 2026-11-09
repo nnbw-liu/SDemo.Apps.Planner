@@ -51,6 +51,10 @@ else
             <article class="project-card" @key="project.Id">
                 <div class="project-card-top">
                     <span class="project-color lg" style="--dot:@project.Color"></span>
+                    @if (project.ExternalSource == "azure-devops")
+                    {
+                        <span class="tag-mini" title="从 Azure DevOps 同步">ADO</span>
+                    }
                     <span class="status-pill status-@project.Status.ToString().ToLowerInvariant()">@StatusLabel(project.Status)</span>
                     <button class="icon-btn" title="编辑项目" @onclick="() => Ui.OpenProject(project)"><Icon Name="edit" Size="15" /></button>
                 </div>

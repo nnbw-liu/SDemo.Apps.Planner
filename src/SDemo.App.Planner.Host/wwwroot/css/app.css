@@ -2439,6 +2439,243 @@ p { margin: 0; }
     border-top: 1px solid var(--line);
 }
 
+.settings-subhead {
+    margin: 18px 0 10px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.settings-ado-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.field-row > *:first-child { flex: 1; min-width: 0; }
+
+.field-row > .btn { flex: 0 0 auto; }
+
+.ado-scope-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.ado-scope-head > span:first-child {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ado-scope-head .push-right {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.ado-scope-count {
+    color: var(--faint);
+    font-size: 10px;
+}
+
+.ado-iteration-list {
+    max-height: 244px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(var(--wash-rgb), 0.025);
+}
+
+.ado-iteration-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 10px 6px calc(10px + var(--depth, 0) * 15px);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 11.5px;
+    transition: background 0.12s ease;
+}
+
+.ado-iteration-row:hover { background: rgba(var(--wash-rgb), 0.055); }
+
+.ado-iteration-row.is-picked { background: var(--accent-soft); }
+
+.ado-iteration-row.is-picked:hover { background: rgba(109, 141, 255, 0.2); }
+
+.ado-iteration-row input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ado-iteration-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    border: 1px solid var(--line-strong);
+    border-radius: 5px;
+    background: var(--surface-sunken);
+    color: transparent;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.ado-iteration-row.is-picked .ado-iteration-check {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.ado-iteration-row:focus-within .ado-iteration-check {
+    box-shadow: 0 0 0 3px rgba(109, 141, 255, 0.18);
+}
+
+.ado-iteration-name {
+    flex: 1;
+    min-width: 0;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ado-iteration-dates {
+    flex: 0 0 auto;
+    color: var(--faint);
+    font-size: 9.5px;
+    white-space: nowrap;
+}
+
+.ado-scope-empty {
+    margin: 0;
+    padding: 12px 2px 2px;
+    color: var(--faint);
+    font-size: 10.5px;
+    line-height: 1.6;
+}
+
+.ado-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(var(--wash-rgb), 0.02);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.ado-toggle:hover { border-color: var(--line-strong); }
+
+.ado-toggle-track {
+    position: relative;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 17px;
+    border-radius: 999px;
+    background: rgba(var(--wash-rgb), 0.12);
+    transition: background 0.15s ease;
+}
+
+.ado-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--text-soft);
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.ado-toggle.is-on .ado-toggle-track { background: var(--accent); }
+
+.ado-toggle.is-on .ado-toggle-thumb {
+    background: #fff;
+    transform: translateX(13px);
+}
+
+.ado-toggle-label {
+    color: var(--text);
+    font-size: 11.5px;
+}
+
+.ado-toggle-note {
+    margin-left: auto;
+    color: var(--faint);
+    font-size: 10px;
+}
+
+.ado-task-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+}
+
+.ado-task-hint {
+    margin-left: auto;
+    color: var(--faint);
+    font-size: 10px;
+}
+
+.settings-warnings {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 10.5px;
+    line-height: 1.6;
+}
+
+.settings-warnings li + li { margin-top: 3px; }
+
+.ado-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 7px;
+    border: 1px solid rgba(109, 141, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(109, 141, 255, 0.12);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+a.ado-chip:hover {
+    border-color: rgba(109, 141, 255, 0.6);
+    background: rgba(109, 141, 255, 0.2);
+}
+
 .settings-version {
     display: flex;
     align-items: center;

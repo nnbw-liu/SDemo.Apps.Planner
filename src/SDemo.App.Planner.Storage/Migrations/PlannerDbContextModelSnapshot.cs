@@ -308,6 +308,21 @@ namespace SDemo.App.Planner.Storage.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("end_at");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("ExternalSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_source");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_url");
+
                     b.Property<string>("Goal")
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT")
@@ -363,6 +378,8 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.HasIndex("DeletedAt");
 
                     b.HasIndex("ProjectId");
+
+                    b.HasIndex("ExternalSource", "ExternalId");
 
                     b.HasIndex("ProjectId", "ParentId");
 
@@ -693,6 +710,21 @@ namespace SDemo.App.Planner.Storage.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("description");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("ExternalSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_source");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_url");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -730,6 +762,8 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.HasIndex("DeletedAt");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("ExternalSource", "ExternalId");
 
                     b.ToTable("project", (string)null);
                 });
@@ -909,6 +943,25 @@ namespace SDemo.App.Planner.Storage.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("due_at");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_id");
+
+                    b.Property<int?>("ExternalRev")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("external_rev");
+
+                    b.Property<string>("ExternalSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_source");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("external_url");
+
                     b.Property<long?>("FtsRowId")
                         .HasColumnType("INTEGER")
                         .HasColumnName("fts_row_id");
@@ -1005,6 +1058,8 @@ namespace SDemo.App.Planner.Storage.Migrations
                     b.HasIndex("ProjectId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("ExternalSource", "ExternalId");
 
                     b.ToTable("todo", (string)null);
                 });

@@ -52,6 +52,16 @@ public sealed class TodoRow
 
     public string? SourceExcerpt { get; set; }
 
+    /// <summary>外部来源（azure-devops）；为空表示本地创建。</summary>
+    public string? ExternalSource { get; set; }
+
+    public string? ExternalId { get; set; }
+
+    /// <summary>外部系统里的版本号；用于「没变就跳过」。</summary>
+    public int? ExternalRev { get; set; }
+
+    public string? ExternalUrl { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -85,6 +95,13 @@ public sealed class ProjectRow
     public int Sort { get; set; }
 
     public int Revision { get; set; }
+
+    /// <summary>外部来源（azure-devops）；为空表示本地项目。</summary>
+    public string? ExternalSource { get; set; }
+
+    public string? ExternalId { get; set; }
+
+    public string? ExternalUrl { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -161,6 +178,13 @@ public sealed class IterationRow
     public int Sort { get; set; }
 
     public int Revision { get; set; }
+
+    /// <summary>外部来源（azure-devops）；为空表示本地创建。</summary>
+    public string? ExternalSource { get; set; }
+
+    public string? ExternalId { get; set; }
+
+    public string? ExternalUrl { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

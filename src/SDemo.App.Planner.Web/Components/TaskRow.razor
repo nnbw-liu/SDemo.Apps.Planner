@@ -15,6 +15,10 @@
                 <span class="kind @KindClass(Todo.Kind)">@KindLabel(Todo.Kind)</span>
             }
             <span class="task-title">@Todo.Title</span>
+            @if (Todo.ExternalSource == "azure-devops" && Todo.ExternalId is not null)
+            {
+                <span class="ado-chip" title="来自 Azure DevOps 工作项 #@Todo.ExternalId">ADO #@Todo.ExternalId</span>
+            }
             @if (Todo.Priority == 1 && !IsTerminal)
             {
                 <span class="priority-high" title="高优先级"><Icon Name="flame" Size="13" /></span>

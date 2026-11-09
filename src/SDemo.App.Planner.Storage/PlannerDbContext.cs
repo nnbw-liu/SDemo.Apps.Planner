@@ -74,6 +74,10 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.Property(x => x.Source).HasColumnName("source").HasMaxLength(16).IsRequired();
             entity.Property(x => x.SourceSessionId).HasColumnName("source_session_id").HasMaxLength(128);
             entity.Property(x => x.SourceExcerpt).HasColumnName("source_excerpt").HasMaxLength(1024);
+            entity.Property(x => x.ExternalSource).HasColumnName("external_source").HasMaxLength(32);
+            entity.Property(x => x.ExternalId).HasColumnName("external_id").HasMaxLength(64);
+            entity.Property(x => x.ExternalRev).HasColumnName("external_rev");
+            entity.Property(x => x.ExternalUrl).HasColumnName("external_url").HasMaxLength(1024);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
             entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
@@ -85,6 +89,7 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.HasIndex(x => x.ProjectId);
             entity.HasIndex(x => x.IterationId);
             entity.HasIndex(x => x.DeletedAt);
+            entity.HasIndex(x => new { x.ExternalSource, x.ExternalId });
         });
 
         modelBuilder.Entity<ProjectRow>(entity =>
@@ -100,11 +105,15 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.Property(x => x.TargetAt).HasColumnName("target_at").HasConversion(UtcConverter);
             entity.Property(x => x.Sort).HasColumnName("sort");
             entity.Property(x => x.Revision).HasColumnName("revision");
+            entity.Property(x => x.ExternalSource).HasColumnName("external_source").HasMaxLength(32);
+            entity.Property(x => x.ExternalId).HasColumnName("external_id").HasMaxLength(64);
+            entity.Property(x => x.ExternalUrl).HasColumnName("external_url").HasMaxLength(1024);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
             entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
             entity.HasIndex(x => x.Status);
             entity.HasIndex(x => x.DeletedAt);
+            entity.HasIndex(x => new { x.ExternalSource, x.ExternalId });
         });
 
         modelBuilder.Entity<ProjectGroupRow>(entity =>
@@ -156,12 +165,16 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.Property(x => x.CompletionNote).HasColumnName("completion_note").HasMaxLength(4000);
             entity.Property(x => x.Sort).HasColumnName("sort");
             entity.Property(x => x.Revision).HasColumnName("revision");
+            entity.Property(x => x.ExternalSource).HasColumnName("external_source").HasMaxLength(32);
+            entity.Property(x => x.ExternalId).HasColumnName("external_id").HasMaxLength(64);
+            entity.Property(x => x.ExternalUrl).HasColumnName("external_url").HasMaxLength(1024);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
             entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
             entity.HasIndex(x => x.ProjectId);
             entity.HasIndex(x => new { x.ProjectId, x.ParentId });
             entity.HasIndex(x => x.DeletedAt);
+            entity.HasIndex(x => new { x.ExternalSource, x.ExternalId });
         });
 
         modelBuilder.Entity<RoutineRow>(entity =>

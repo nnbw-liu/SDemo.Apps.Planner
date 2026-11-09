@@ -1,6 +1,7 @@
 @using SDemo.App.Planner.Web
 @inherits PlannerPageBase
 @inject ThemeService Theme
+@inject AdoImportService Ado
 
 <Modal Title="设置" Eyebrow="Preferences" SizeClass="modal-lg" OnClose="Close">
     <ChildContent>
@@ -13,6 +14,10 @@
                 <button class="settings-nav-item @(_section == "mcp" ? "active" : "")" type="button" @onclick="ShowMcp">
                     <Icon Name="layers" Size="15" />
                     <span>MCP 服务</span>
+                </button>
+                <button class="settings-nav-item @(_section == "ado" ? "active" : "")" type="button" @onclick="ShowAdo">
+                    <Icon Name="link" Size="15" />
+                    <span>Azure DevOps</span>
                 </button>
             </nav>
 
@@ -62,6 +67,63 @@
                         </div>
 
                         <p class="settings-footnote">宿主 API @(PlannerConstants.HostApiVersion)。</p>
+                    </section>
+                }
+                else if (_section == "ado")
+                {
+                    <section class="settings-section">
+                        <header class="settings-section-head">
+                            <h3>Azure DevOps</h3>
+                            <p>只读镜像：冲刺与任务从 ADO 同步进来，ADO 是权威源，本地手工条目不会被改动。这里只配「连得上」——集合地址与 PAT；同步哪个云端项目、拉哪些人/迭代，到项目页里设置。</p>
+                        </header>
+
+                        @if (_adoError is not null)
+                        {
+                            <p class="form-error">@_adoError</p>
+                        }
+
+                        <div class="settings-master @(_adoEnabled ? "" : "is-off")">
+                            <div>
+                                <strong>启用 Azure DevOps 接入</strong>
+                                <small>@(_adoEnabled ? "项目里可以随时手动同步。" : "已关闭，项目里的同步入口与徽标都不再显示。")</small>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" checked="@_adoEnabled" @onchange="e => _adoEnabled = e.Value is true" />
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>
+
+                        <label class="field">
+                            <span>集合地址</span>
+                            <input class="input" placeholder="http://172.30.184.25:8088/Utilities"
+                                   @bind="_adoCollection" @bind:event="oninput" />
+                        </label>
+
+                        <label class="field">
+                            <span>个人访问令牌（PAT）</span>
+                            <input class="input" type="password"
+                                   placeholder="@(_ado.HasPat ? "已保存；留空表示保持不变" : "粘贴 PAT（只保存在本地数据库）")"
+                                   @bind="_adoPat" />
+                        </label>
+
+                        <div class="settings-ado-actions">
+                            <button type="button" class="btn btn-primary" @onclick="SaveAdo" disabled="@_adoBusy">保存</button>
+                            <button type="button" class="btn" @onclick="TestAdo" disabled="@_adoBusy">测试连接</button>
+                        </div>
+
+                        @if (_adoNotice is not null)
+                        {
+                            <p class="settings-footnote">@_adoNotice</p>
+                        }
+
+                        @if (_adoTest is not null)
+                        {
+                            <p class="@(_adoTest.Ok ? "settings-footnote" : "form-error")">@_adoTest.Message</p>
+                        }
+
+                        <p class="settings-footnote">
+                            同步哪个云端项目、指派人、迭代范围，都在「项目 → 云端项目」里配；配好后再点「从 ADO 同步」。
+                        </p>
                     </section>
                 }
                 else
@@ -138,14 +200,88 @@
     private McpSettingsDto _mcp = new();
     private string? _mcpError;
 
+    private AdoConnectionDto _ado = new();
+    private string _adoCollection = string.Empty;
+    private string _adoPat = string.Empty;
+    private bool _adoEnabled = true;
+    private bool _adoBusy;
+    private string? _adoError;
+    private string? _adoNotice;
+    private AdoConnectionTestDto? _adoTest;
+
     protected override void Reload()
     {
         _mcp = Service.GetMcpSettings();
+        ReloadAdo();
     }
 
     private void ShowGeneral() => _section = "general";
 
     private void ShowMcp() => _section = "mcp";
+
+    private void ShowAdo()
+    {
+        _section = "ado";
+        ReloadAdo();
+    }
+
+    private void ReloadAdo()
+    {
+        _ado = Ado.GetConnection();
+        _adoCollection = _ado.CollectionUrl;
+        _adoEnabled = _ado.Enabled;
+        _adoPat = string.Empty;
+        _adoError = null;
+        _adoNotice = null;
+        _adoTest = null;
+    }
+
+    private AdoConnectionInput AdoInput() => new()
+    {
+        Enabled = _adoEnabled,
+        CollectionUrl = _adoCollection.Trim(),
+        Pat = string.IsNullOrWhiteSpace(_adoPat) ? null : _adoPat.Trim(),
+    };
+
+    private void SaveAdo()
+    {
+        _adoError = null;
+        _adoNotice = null;
+        try
+        {
+            _ado = Ado.SaveConnection(AdoInput());
+            _adoPat = string.Empty;
+            _adoNotice = "已保存连接设置。";
+        }
+        catch (PlannerException ex)
+        {
+            _adoError = ex.Message;
+        }
+    }
+
+    private async Task TestAdo()
+    {
+        _adoBusy = true;
+        _adoError = null;
+        _adoNotice = null;
+        _adoTest = null;
+        try
+        {
+            _adoTest = await Ado.TestConnectionAsync(AdoInput());
+        }
+        catch (PlannerException ex)
+        {
+            _adoError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _adoError = ex.Message;
+        }
+        finally
+        {
+            _adoBusy = false;
+        }
+    }
 
     private async Task SetMode(ThemeMode mode)
     {

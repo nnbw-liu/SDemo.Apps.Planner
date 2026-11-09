@@ -16,6 +16,10 @@ public static class ErrorCodes
     public const string DraftNotFound = "DRAFT_NOT_FOUND";
     public const string InvalidUri = "TODO_INVALID_URI";
 
+    /// <summary>Azure DevOps 未配置 / 连不上 / 返回非 2xx。</summary>
+    public const string AdoNotConfigured = "ADO_NOT_CONFIGURED";
+    public const string AdoUnavailable = "ADO_UNAVAILABLE";
+
     /// <summary>MCP 协议层错误（未知工具 / 参数不是合法 JSON / 方法不存在）。</summary>
     public const string UnknownTool = "MCP_UNKNOWN_TOOL";
     public const string BadRequest = "MCP_BAD_REQUEST";

@@ -87,6 +87,13 @@ public sealed record ProjectDto
 
     public int Revision { get; init; }
 
+    /// <summary>外部来源（目前只有 <c>azure-devops</c>）；为空表示本地项目。</summary>
+    public string? ExternalSource { get; init; }
+
+    public string? ExternalId { get; init; }
+
+    public string? ExternalUrl { get; init; }
+
     /// <summary>所属分组；一个项目可以同时属于多个分组。</summary>
     public IReadOnlyList<ProjectGroupDto> Groups { get; init; } = [];
 
@@ -146,6 +153,13 @@ public sealed record IterationDto
     public int Sort { get; init; }
 
     public int Revision { get; init; }
+
+    /// <summary>外部来源（目前只有 <c>azure-devops</c>）；为空表示本地创建。</summary>
+    public string? ExternalSource { get; init; }
+
+    public string? ExternalId { get; init; }
+
+    public string? ExternalUrl { get; init; }
 
     public int TotalTasks { get; init; }
 

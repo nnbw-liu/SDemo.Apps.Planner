@@ -160,6 +160,8 @@ internal static class Program
         services.AddSingleton<PlannerUi>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(15) });
         services.AddSingleton<HolidaySyncService>();
+        services.AddSingleton<AdoClient>();
+        services.AddSingleton<AdoImportService>();
         var lifecycle = new HostAppLifecycle();
         services.AddSingleton<IAppLifecycle>(lifecycle);
         services.AddSingleton<IThemeHost, HostThemeBridge>();

@@ -58,6 +58,18 @@ public sealed record TodoDto
 
     public string? SourceExcerpt { get; init; }
 
+    /// <summary>外部来源，目前只有 <c>azure-devops</c>；为空表示本地创建。</summary>
+    public string? ExternalSource { get; init; }
+
+    /// <summary>外部来源里的 id（ADO work item id）。</summary>
+    public string? ExternalId { get; init; }
+
+    /// <summary>外部来源里可直接打开的链接。</summary>
+    public string? ExternalUrl { get; init; }
+
+    /// <summary>上次同步时 ADO 工作项的 rev，推送前用它做并发校验。</summary>
+    public int? ExternalRev { get; init; }
+
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     /// <summary>跨应用引用字符串，例如 <c>sdemo.kb/doc/doc_01H@v3#b2</c>。</summary>

@@ -6,7 +6,19 @@
 
 事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅。
 
-## 现状（2026-11-08）
+## 现状（2026-11-09）
+
+✅ **v0.6 已实现并实机验证**：Azure DevOps 任务与冲刺只读接入。
+- 连接（v0.6，全局）：设置 →「Azure DevOps」只配连接：集合地址（到集合为止，例 `http://172.30.184.25:8088/Utilities`）+ PAT + 启用，按钮「保存 / 测试连接」（测试读认证用户 + 可见项目数）。存 `app_setting` 的 `ado.enabled|collectionUrl|pat`；PAT 只写不读（`AdoConnectionDto.HasPat` 只暴露布尔）。
+- 项目绑定（v0.6，按项目）：本地项目自己在项目页「绑定云端项目」对话框（`AdoBindingDialog`）里配云端项目（`_apis/projects` 下拉）、指派人、迭代、是否跳过已关闭，然后「立即同步 / 测试范围」。绑定存 `ado.bind.{projectId}.*`（project/assignedTo/iterations 换行分隔/skipClosed/lastSync*）。同步**不新建本地项目**，只链接已有项目（`ProjectLinked`）。
+- 拉取（v0.6）：`AdoClient` 走 Basic PAT + `api-version=5.1`（`connectionData` 必须 `5.1-preview.1`）；取项目、迭代分类树（含根节点）、WIQL 取 id、每 200 一批取工作项详情；WIQL 带指派人/迭代别名/跳过已关闭。
+- 映射（v0.6）：`AdoMapper` 状态（新建→open/活动→doing/已解决→done/已验证→verified/已关闭→closed/已删除→canceled）、类型（Bug→bug/调研→research/杂务→chore）、优先级 P1..P4→4..1、HTML 说明转纯文本、迭代状态按起止推。
+- 落库（v0.6）：`PlannerService.ApplyAdoSnapshot(snapshot, projectId)` 按 `external_source + external_id` 幂等 upsert；项目/迭代/任务加 `external_*` 列（迁移 `AdoV6`）；导入条目 `Source=import`、操作者 `import`；ADO 为权威源，本地手工条目不动。
+- 同步范围（v0.6）：指派人（空=全部、`@Me`=PAT 账号、或具体的人）、迭代（勾选节点，自动带子节点与祖先；不勾=全部）、只同步未关闭（WIQL 排除 Closed/Done/Resolved）；范围只决定拉什么，不删本地旧条目。
+- 界面（v0.6）：设置「Azure DevOps」只留连接；项目页「绑定云端项目 / 云端项目 · xxx」+（已绑定时）「从 ADO 同步」「在 ADO 打开」；绑定对话框里迭代是主题化勾选列表（层级缩进 + 起止日期）、「只同步未关闭」是开关、「保存并关闭」保存即收起；项目卡片 `ADO` 标记；任务行与任务详情 `ADO #id` 徽标（详情可点开 ADO 页）。
+- 单任务同步（v0.6）：任务详情「同步到云端 / 从云端同步」推拉标题、说明、状态、优先级；推送走 JSON Patch（`test /rev` 守卫，409 提示先拉取），状态候选循环试（`ToAdoStates`），说明转 HTML（`ToAdoHtml`），成功后新 rev 回写本地。
+- 真实环境（2026-11-09，用户 `Liu, Qihui`）：获取项目 6 个；项目 dynabookAssistant-Agent 共 68 个工作项、5 个迭代（1 大 4 小）。早期模型（同步自动建项目）首次全新建、二次 0 新建 0 更新 68 未变；范围同步 Xie, Huangteng + 3.0.1 + 只同步未关闭 = 11 条（进行中 9、待办 2）。现行模型（项目绑定）：新建本地项目 → 绑定同上范围 → 首次 `ProjectLinked` + 迭代 2 新建 + 任务 11 新建，二次 0 新建 0 更新 11 未变。
+- 验证记录：[docs/planner-v06.md](docs/planner-v06.md)。
 
 ✅ **v0.5 已实现**：项目多分组、MCP 总开关与逐工具开关、迭代说明区自适应、任务说明一键复制、任务列表默认按状态排序、任务派生 Bug。
 - 项目分组（v0.5）：`project_group` + `project_group_member` 多对多；`ProjectDto.Groups`；项目页有分组筛选与「管理分组」弹窗；项目编辑可多选；删除项目/分组会清理成员行。
@@ -45,7 +57,7 @@
 - 桌面组件已于 2026-11-07 移除（`WidgetWindow`、`PlannerWidget.razor`、`widget.json` 与 widgets 路由均已删除）。宿主拉起应用时直接显示主窗口；替代方案未定，不要自行加回组件。
 - 验证记录：[docs/planner-v05.md](docs/planner-v05.md)、[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
 
-未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；桌面组件（已移除，替代方案待定）；日程拖拽/重复规则；托盘开机自启。
+未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；桌面组件（已移除，替代方案待定）；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、评论/附件同步、`ado_*` MCP 工具。
 P5：outbox 合并、ICS 只读订阅。
 
 ## 目录
@@ -86,6 +98,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 
 | 改什么 | 读 |
 | --- | --- |
+| **v0.6 Azure DevOps 接入** | [docs/planner-v06.md](docs/planner-v06.md) |
 | **v0.5 分组/MCP 开关/排序** | [docs/planner-v05.md](docs/planner-v05.md) |
 | **v4 更名/搜索/节假日** | [docs/planner-v4.md](docs/planner-v4.md) |
 | **v3 状态/完成记录/延期/下拉/排序/托盘** | [docs/planner-v3.md](docs/planner-v3.md) |
@@ -134,6 +147,12 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 搜索：`MainLayout` 的输入框在回车后保留关键字；清除走 `ClearSearch()` 回 `/tasks`；`Tasks` 的搜索必须保持 `Status=all`。
 - 迁移必须让 `dotnet ef` 重新 build，别加 `--no-build`，否则会生成空迁移。
 - 每次写都要 `revision + 1`（含删除/恢复）；MCP 写工具必须带 `expectedRevision`。
+- ADO 接入：`api-version` 只能 5.1（这台服务器 6.0/7.1 直接 400），且 `connectionData` 必须写 `5.1-preview.1`，否则报「处于预览状态」。
+- ADO 路径两套口径：分类节点是 `项目\迭代\3.0.1`，工作项 `System.IterationPath` 是 `项目\3.0.1`（不含迭代根节点）。比对前过 `AdoMapper.NormalizePath`，并给每层注册「去掉根节点」的别名，否则全部拍平成大迭代。
+- 迭代根节点的 `name` 服务端给的是项目名，展示名用路径末段（通常是「迭代」）。
+- 导入更新走整行克隆：`PlannerStore.ApplyTodoWrites` 是 `SetValues` 整行覆盖，漏字段会被写空，tags/links 也要显式带上。
+- ADO 同步不新建本地项目：必须先在事序里建项目，再去项目页绑定云端项目；绑定存 `ado.bind.{projectId}.project|assignedTo|iterations|skipClosed|lastSync*`，不是全局 `ado.*`。
+- `ListTodos` 的 `Limit` 被夹在 `PlannerConstants.MaxListLimit`（50），想看全量去 `Store.QueryProjectTodos()`，别误判成丢数据。
 - FTS 是迁移 SQL 建的虚表，`todo_fts` 的 rowid 存在 `todo.fts_row_id`；
   Entity 里没有 `todo_fts` 的 DbSet，别用 `EnsureCreated`。
 - 相似重复阈值 0.75；完全重复只拒绝 AI/meeting 来源，manual 不拦。

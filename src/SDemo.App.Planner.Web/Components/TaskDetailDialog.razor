@@ -1,5 +1,6 @@
 @inherits PlannerPageBase
 @inject IJSRuntime JS
+@inject AdoImportService Ado
 @* 任务只读详情。状态/编辑/延期入口在列表行上，详情里保留「标记完成」与「编辑」。 *@
 @if (Ui.ViewingTodo is { } todo)
 {
@@ -14,7 +15,29 @@
                 {
                     <span class="task-detail-flag"><Icon Name="flame" Size="12" /> 高优先级</span>
                 }
+                @if (todo.ExternalSource == "azure-devops" && todo.ExternalId is not null)
+                {
+                    <a class="ado-chip" href="@(string.IsNullOrWhiteSpace(todo.ExternalUrl) ? "#" : todo.ExternalUrl)"
+                       target="_blank" rel="noreferrer" title="在 Azure DevOps 中打开">
+                        <Icon Name="link" Size="12" /> ADO #@todo.ExternalId
+                    </a>
+                }
             </div>
+
+            @if (todo.ExternalSource == "azure-devops" && todo.ExternalId is not null)
+            {
+                <div class="ado-task-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" @onclick="PushToAdo" disabled="@_adoBusy">
+                        <Icon Name="upload" Size="13" /> @(_adoBusy ? "同步中…" : "同步到云端")
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" @onclick="PullFromAdo" disabled="@_adoBusy">
+                        <Icon Name="download" Size="13" /> 从云端同步
+                    </button>
+                    <span class="ado-task-hint">
+                        推送标题 / 说明 / 状态 / 优先级 · rev @(todo.ExternalRev?.ToString() ?? "—")
+                    </span>
+                </div>
+            }
 
             <dl class="detail-grid">
                 <div>
@@ -239,6 +262,7 @@
     private TodoDto? _parentTodo;
     private string? _historyError;
     private string? _relationError;
+    private bool _adoBusy;
 
     protected override void Reload()
     {
@@ -297,6 +321,62 @@
     }
 
     private void Close() => Ui.CloseTaskDetail();
+
+    private async Task PushToAdo()
+    {
+        if (Ui.ViewingTodo is not { } todo || _adoBusy)
+        {
+            return;
+        }
+
+        _adoBusy = true;
+        try
+        {
+            var result = await Ado.PushTodoAsync(todo.Id);
+            Ui.Toast(result.Message);
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast($"推送失败：{ex.Message}");
+        }
+        finally
+        {
+            _adoBusy = false;
+        }
+    }
+
+    private async Task PullFromAdo()
+    {
+        if (Ui.ViewingTodo is not { } todo || _adoBusy)
+        {
+            return;
+        }
+
+        _adoBusy = true;
+        try
+        {
+            var result = await Ado.PullTodoAsync(todo.Id);
+            Ui.Toast(result.Message);
+            if (result.Ok)
+            {
+                var refreshed = Service.GetTodo(todo.Id);
+                if (refreshed is not null)
+                {
+                    Ui.OpenTaskDetail(refreshed);
+                }
+
+                Reload();
+            }
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast($"拉取失败：{ex.Message}");
+        }
+        finally
+        {
+            _adoBusy = false;
+        }
+    }
 
     private async Task CopyNotes(string text)
     {
