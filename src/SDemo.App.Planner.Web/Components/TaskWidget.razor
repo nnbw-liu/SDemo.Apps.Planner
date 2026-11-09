@@ -1,0 +1,402 @@
+@inherits PlannerPageBase
+@* 桌面任务组件：只列未完成任务，默认「优先级 → 截止时间」，可按项目 / 迭代 / 小迭代筛选。 *@
+
+<section class="task-widget">
+    <header class="tw-head">
+        <div class="tw-heading">
+            <span class="eyebrow">任务</span>
+            <h3>@_todos.Count<small>项未完成</small></h3>
+        </div>
+        <div class="tw-head-actions">
+            <button type="button" class="icon-btn" title="新建任务" @onclick="NewTask">
+                <Icon Name="plus" Size="15" />
+            </button>
+            <button type="button" class="icon-btn" title="刷新" @onclick="Reload">
+                <Icon Name="repeat" Size="14" />
+            </button>
+        </div>
+    </header>
+
+    <div class="tw-filters">
+        <SelectBox TValue="string"
+                   Compact="true"
+                   Class="tw-filter"
+                   Value="_projectId ?? string.Empty"
+                   ValueChanged="OnProjectChanged"
+                   Options="ProjectOptions"
+                   Placeholder="全部项目" />
+
+        <SelectBox TValue="string"
+                   Compact="true"
+                   Class="tw-filter"
+                   Value="_iterationId ?? string.Empty"
+                   ValueChanged="OnIterationChanged"
+                   Options="IterationOptions"
+                   Disabled="_projectId is null"
+                   Placeholder="先选项目" />
+    </div>
+
+    <div class="tw-sort">
+        <span class="tw-sort-label">排序</span>
+        <SelectBox TValue="TodoSort"
+                   Compact="true"
+                   Class="tw-sortbox"
+                   Value="_sort"
+                   ValueChanged="SetSort"
+                   Options="SortOptions" />
+        @if (_projectId is not null || _iterationId is not null)
+        {
+            <button type="button" class="tw-clear" @onclick="ResetFilters">清除筛选</button>
+        }
+    </div>
+
+    @if (_todos.Count == 0)
+    {
+        <div class="tw-empty">
+            <span class="empty-emoji">✅</span>
+            <strong>没有未完成的任务</strong>
+            <p>@(_projectId is null && _iterationId is null ? "现在是空的。双击任务可以看详情，也可以从右上角新建一条。" : "当前筛选下没有未完成任务。")</p>
+            @if (_projectId is not null || _iterationId is not null)
+            {
+                <button type="button" class="btn btn-ghost btn-sm" @onclick="ResetFilters">清除筛选</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="tw-list">
+            @foreach (var todo in _todos)
+            {
+                <article class="tw-task @(DueClass(todo) == "overdue" ? "is-overdue" : "")"
+                         title="双击查看详情"
+                         @ondblclick="() => OpenDetail(todo)">
+                    <button type="button" class="tw-check" title="完成任务" @onclick:stopPropagation="true" @ondblclick:stopPropagation="true" @onclick="() => Complete(todo)">
+                        <Icon Name="check" Size="13" />
+                    </button>
+
+                    <div class="tw-main">
+                        <div class="tw-title-line">
+                            <span class="tw-state-dot @StatusDotClass(todo.Status)" title="@StatusLabel(todo.Status)"></span>
+                            @if (todo.Kind != WorkItemKind.Task)
+                            {
+                                <span class="kind @KindClass(todo.Kind)">@KindLabel(todo.Kind)</span>
+                            }
+                            <span class="tw-title">@todo.Title</span>
+                            @if (todo.Priority == 1)
+                            {
+                                <span class="priority-high" title="高优先级"><Icon Name="flame" Size="12" /></span>
+                            }
+                        </div>
+                        <div class="tw-meta">
+                            @if (_projectId is null && todo.ProjectName is not null)
+                            {
+                                <span class="meta-item">
+                                    <span class="project-dot" style="--dot:@(todo.ProjectColor ?? "#4C8DFF")"></span>
+                                    @todo.ProjectName
+                                </span>
+                            }
+                            @if (todo.IterationName is not null)
+                            {
+                                <span class="meta-item">@todo.IterationName</span>
+                            }
+                            <span class="tw-due @DueClass(todo)" title="@DueTitle(todo)">
+                                <Icon Name="clock" Size="12" />
+                                @DueText(todo)
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="tw-tail" @onclick:stopPropagation="true" @ondblclick:stopPropagation="true">
+                        <button type="button" class="tw-action" title="延期" @onclick="() => Postpone(todo)">
+                            <Icon Name="clock" Size="14" />
+                        </button>
+                        <button type="button" class="tw-action" title="查看详情" @onclick="() => OpenDetail(todo)">
+                            <Icon Name="chevron-right" Size="14" />
+                        </button>
+                    </div>
+                </article>
+            }
+
+            @if (_todos.Count >= ListLimit)
+            {
+                <p class="tw-more">最多显示 @ListLimit 条，选项目或迭代可以缩小范围。</p>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private const int ListLimit = 50;
+    private const string NoIteration = "__none__";
+
+    private string? _projectId;
+    private string? _iterationId;
+    private TodoSort _sort = TodoSort.Priority;
+    private IReadOnlyList<ProjectDto> _projects = [];
+    private IReadOnlyList<IterationDto> _iterations = [];
+    private IReadOnlyList<TodoDto> _todos = [];
+
+    private static readonly IReadOnlyList<SelectOption<TodoSort>> SortOptions =
+    [
+        new(TodoSort.Priority, "优先级 · 截止"),
+        new(TodoSort.Due, "截止时间"),
+        new(TodoSort.Updated, "最近更新"),
+        new(TodoSort.Created, "创建时间"),
+    ];
+
+    private IReadOnlyList<SelectOption<string>> ProjectOptions =>
+    [
+        new(string.Empty, "全部项目"),
+        .. _projects
+            .OrderByDescending(p => p.Status == ProjectStatus.Active)
+            .ThenBy(p => p.Name)
+            .Select(p => new SelectOption<string>(p.Id, p.Name)),
+    ];
+
+    /// <summary>大迭代列出自身和子迭代；未挂迭代的任务单独成项。</summary>
+    private IReadOnlyList<SelectOption<string>> IterationOptions
+    {
+        get
+        {
+            if (_projectId is null)
+            {
+                return [new(string.Empty, "全部迭代")];
+            }
+
+            var options = new List<SelectOption<string>> { new(string.Empty, "全部迭代") };
+            var projectIterations = _iterations
+                .Where(i => i.ProjectId == _projectId)
+                .OrderBy(i => i.Sort)
+                .ThenBy(i => i.StartAt)
+                .ToList();
+
+            foreach (var big in projectIterations.Where(i => i.Level == IterationLevel.Big))
+            {
+                options.Add(new SelectOption<string>(big.Id, big.Name, "大迭代"));
+                foreach (var child in projectIterations.Where(i => i.ParentId == big.Id))
+                {
+                    options.Add(new SelectOption<string>(
+                        child.Id,
+                        $"{big.Name} · {child.Name}",
+                        "小迭代",
+                        child.Name));
+                }
+            }
+
+            // 父级缺失的孤儿小迭代也要能筛到，避免任务被藏起来。
+            foreach (var orphan in projectIterations.Where(i =>
+                         i.Level == IterationLevel.Small
+                         && (i.ParentId is null || projectIterations.All(p => p.Id != i.ParentId))))
+            {
+                options.Add(new SelectOption<string>(orphan.Id, orphan.Name, "小迭代", orphan.Name));
+            }
+
+            options.Add(new SelectOption<string>(NoIteration, "未归入迭代"));
+            return options;
+        }
+    }
+
+    protected override void Reload()
+    {
+        _projects = Service.ListProjects();
+        _iterations = Service.ListIterations();
+
+        if (_projectId is not null && _projects.All(p => p.Id != _projectId))
+        {
+            _projectId = null;
+        }
+
+        if (_projectId is null)
+        {
+            _iterationId = null;
+        }
+        else if (_iterationId is not null && _iterationId != NoIteration)
+        {
+            var iteration = _iterations.FirstOrDefault(i => i.Id == _iterationId);
+            if (iteration is null || iteration.ProjectId != _projectId)
+            {
+                _iterationId = null;
+            }
+        }
+
+        _todos = LoadTodos();
+    }
+
+    private IReadOnlyList<TodoDto> LoadTodos()
+    {
+        var query = new TodoQuery
+        {
+            Status = "active",
+            ProjectId = _projectId,
+            Sort = _sort,
+            Limit = ListLimit,
+        };
+
+        if (_iterationId is null)
+        {
+            return Service.ListTodos(query);
+        }
+
+        if (_iterationId == NoIteration)
+        {
+            // 服务端不能按「迭代为空」过滤，取当前范围后在客户端收口。
+            return Service.ListTodos(query)
+                .Where(t => string.IsNullOrEmpty(t.IterationId))
+                .Take(ListLimit)
+                .ToList();
+        }
+
+        var iteration = _iterations.FirstOrDefault(i => i.Id == _iterationId);
+        if (iteration is null)
+        {
+            return Service.ListTodos(query);
+        }
+
+        if (iteration.Level != IterationLevel.Big)
+        {
+            return Service.ListTodos(query with { IterationId = iteration.Id });
+        }
+
+        // 选大迭代时把直属任务和所有小迭代任务一起取出，再统一排序。
+        var ids = new List<string> { iteration.Id };
+        ids.AddRange(_iterations.Where(i => i.ParentId == iteration.Id).Select(i => i.Id));
+        var merged = ids
+            .SelectMany(id => Service.ListTodos(query with { IterationId = id }))
+            .GroupBy(t => t.Id)
+            .Select(g => g.First());
+
+        return SortTodos(merged).Take(ListLimit).ToList();
+    }
+
+    /// <summary>只在本地合并多个迭代查询时使用；单次查询已由服务端排好。</summary>
+    private IEnumerable<TodoDto> SortTodos(IEnumerable<TodoDto> items) => _sort switch
+    {
+        TodoSort.Due => items
+            .OrderBy(t => t.DueAt is null)
+            .ThenBy(t => t.DueAt)
+            .ThenBy(t => t.Priority)
+            .ThenByDescending(t => t.UpdatedAt),
+        TodoSort.Updated => items.OrderByDescending(t => t.UpdatedAt),
+        TodoSort.Created => items.OrderByDescending(t => t.CreatedAt),
+        TodoSort.Status => items
+            .OrderBy(t => t.Status == TodoStatus.Doing ? 0 : 1)
+            .ThenBy(t => t.DueAt is null)
+            .ThenBy(t => t.DueAt)
+            .ThenByDescending(t => t.UpdatedAt),
+        _ => items
+            .OrderBy(t => t.Priority)
+            .ThenBy(t => t.DueAt is null)
+            .ThenBy(t => t.DueAt)
+            .ThenByDescending(t => t.UpdatedAt),
+    };
+
+    private void OnProjectChanged(string value)
+    {
+        _projectId = string.IsNullOrEmpty(value) ? null : value;
+        _iterationId = null;
+        Reload();
+    }
+
+    private void OnIterationChanged(string value)
+    {
+        _iterationId = string.IsNullOrEmpty(value) ? null : value;
+        Reload();
+    }
+
+    private void SetSort(TodoSort sort)
+    {
+        _sort = sort;
+        Reload();
+    }
+
+    private void ResetFilters()
+    {
+        _projectId = null;
+        _iterationId = null;
+        Reload();
+    }
+
+    private void NewTask() => Ui.OpenTask(
+        projectId: _projectId,
+        iterationId: _iterationId is null or NoIteration ? null : _iterationId);
+
+    private void OpenDetail(TodoDto todo) => Ui.OpenTaskDetail(todo);
+
+    private void Complete(TodoDto todo) => Ui.OpenComplete(todo);
+
+    private void Postpone(TodoDto todo) => Ui.OpenPostpone(todo);
+
+    private static string DueClass(TodoDto todo)
+    {
+        if (todo.DueAt is not { } due)
+        {
+            return "none";
+        }
+
+        var local = due.ToLocalTime();
+        if (local < DateTimeOffset.Now)
+        {
+            return "overdue";
+        }
+
+        if (local.Date == DateTime.Today)
+        {
+            return "today";
+        }
+
+        return local.Date == DateTime.Today.AddDays(1) ? "soon" : "later";
+    }
+
+    private static string DueText(TodoDto todo)
+    {
+        if (todo.DueAt is not { } due)
+        {
+            return "未排期";
+        }
+
+        var local = due.ToLocalTime();
+        var today = DateTime.Today;
+        if (local < DateTimeOffset.Now)
+        {
+            var days = (today - local.Date).Days;
+            return days <= 0 ? "已逾期" : $"逾期 {days} 天";
+        }
+
+        if (local.Date == today)
+        {
+            return "今天 " + local.ToString("HH:mm");
+        }
+
+        if (local.Date == today.AddDays(1))
+        {
+            return "明天 " + local.ToString("HH:mm");
+        }
+
+        return local.Year == today.Year
+            ? local.ToString("M月d日")
+            : local.ToString("yyyy年M月d日");
+    }
+
+    private static string DueTitle(TodoDto todo) =>
+        todo.DueAt is { } due ? "截止 " + due.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "未设置截止时间";
+
+    private static string StatusLabel(TodoStatus status) => status switch
+    {
+        TodoStatus.Doing => "进行中",
+        TodoStatus.Done => "已完成",
+        TodoStatus.Verified => "已验证",
+        TodoStatus.Closed => "已关闭",
+        TodoStatus.Canceled => "已取消",
+        _ => "新建",
+    };
+
+    private static string StatusDotClass(TodoStatus status) => status switch
+    {
+        TodoStatus.Doing => "doing",
+        TodoStatus.Done => "done",
+        TodoStatus.Verified => "verified",
+        TodoStatus.Closed => "closed",
+        TodoStatus.Canceled => "canceled",
+        _ => "open",
+    };
+}

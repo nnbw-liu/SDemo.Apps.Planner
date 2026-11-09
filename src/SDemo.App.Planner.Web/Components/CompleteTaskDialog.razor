@@ -76,6 +76,7 @@
         _todo = Ui.CompletingTodo ?? throw new InvalidOperationException("完成弹窗缺少任务");
         _note = _todo.CompletionNote ?? string.Empty;
         _artifacts = string.Join(Environment.NewLine, _todo.Artifacts);
+        _status = Ui.CompletingStatus;
     }
 
     private string KindText => _todo.Kind switch

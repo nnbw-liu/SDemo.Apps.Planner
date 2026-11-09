@@ -61,6 +61,8 @@ internal sealed class HubServer : IAsyncDisposable
         builder.Services.AddSingleton<IThemeHost, NullThemeHost>();
         builder.Services.AddSingleton<IAppLifecycle, ServerAppLifecycle>();
         builder.Services.AddSingleton<HolidaySyncService>();
+        builder.Services.AddSingleton<AdoClient>();
+        builder.Services.AddSingleton<AdoImportService>();
         builder.Services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(15) });
 
         var app = builder.Build();
@@ -148,7 +150,7 @@ internal sealed class HubServer : IAsyncDisposable
 
         Port = uri.Port;
         WriteConnectionFile();
-        PlannerLog.Info($"Hub 面已就绪：http://127.0.0.1:{Port}（组件 /widgets/calendar）");
+        PlannerLog.Info($"Hub 面已就绪：http://127.0.0.1:{Port}（组件 /widgets/calendar、/widgets/tasks）");
     }
 
     public async Task StopAsync()
@@ -227,6 +229,16 @@ internal sealed class HubServer : IAsyncDisposable
                 minSize = new { width = 680, height = 560 },
                 defaultVisible = true,
             },
+            new
+            {
+                id = "tasks",
+                displayName = "任务",
+                description = "未完成任务、优先级 / 截止排序、项目迭代筛选",
+                entry = "/widgets/tasks",
+                size = new { width = 480, height = 680 },
+                minSize = new { width = 360, height = 420 },
+                defaultVisible = true,
+            },
         },
     };
 
@@ -269,6 +281,16 @@ internal sealed class HubServer : IAsyncDisposable
                     ["entry"] = "/widgets/calendar",
                     ["size"] = new JsonObject { ["width"] = 840, ["height"] = 780 },
                     ["minSize"] = new JsonObject { ["width"] = 680, ["height"] = 560 },
+                    ["defaultVisible"] = true,
+                },
+                new JsonObject
+                {
+                    ["id"] = "tasks",
+                    ["displayName"] = "任务",
+                    ["description"] = "未完成任务、优先级 / 截止排序、项目迭代筛选",
+                    ["entry"] = "/widgets/tasks",
+                    ["size"] = new JsonObject { ["width"] = 480, ["height"] = 680 },
+                    ["minSize"] = new JsonObject { ["width"] = 360, ["height"] = 420 },
                     ["defaultVisible"] = true,
                 },
             },

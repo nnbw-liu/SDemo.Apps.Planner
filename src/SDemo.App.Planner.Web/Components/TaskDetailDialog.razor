@@ -41,6 +41,21 @@
 
             <dl class="detail-grid">
                 <div>
+                    <dt>状态</dt>
+                    <dd>
+                        <SelectBox TValue="TodoStatus"
+                                   Compact="true"
+                                   Class="detail-status-select"
+                                   Value="todo.Status"
+                                   ValueChanged="status => ChangeStatus(todo, status)"
+                                   Options="StatusOptions" />
+                    </dd>
+                </div>
+                <div>
+                    <dt>优先级</dt>
+                    <dd>@PriorityLabel(todo.Priority)</dd>
+                </div>
+                <div>
                     <dt>项目</dt>
                     <dd>
                         @if (todo.ProjectName is not null)
@@ -264,6 +279,16 @@
     private string? _relationError;
     private bool _adoBusy;
 
+    private static readonly IReadOnlyList<SelectOption<TodoStatus>> StatusOptions =
+    [
+        new(TodoStatus.Open, "新建"),
+        new(TodoStatus.Doing, "进行中"),
+        new(TodoStatus.Done, "已完成"),
+        new(TodoStatus.Verified, "已验证"),
+        new(TodoStatus.Closed, "已关闭"),
+        new(TodoStatus.Canceled, "已取消"),
+    ];
+
     protected override void Reload()
     {
         if (Ui.ViewingTodo is not { } todo)
@@ -411,6 +436,47 @@
 
         Ui.CloseTaskDetail();
         Ui.OpenComplete(todo);
+    }
+
+    /// <summary>
+    /// 详情里的状态下拉：非终态直接改；终态要走完成弹窗补完成说明与产物。
+    /// </summary>
+    private void ChangeStatus(TodoDto todo, TodoStatus status)
+    {
+        if (status == todo.Status)
+        {
+            return;
+        }
+
+        if (status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed or TodoStatus.Canceled)
+        {
+            Ui.CloseTaskDetail();
+            Ui.OpenComplete(todo, status);
+            return;
+        }
+
+        try
+        {
+            Service.SetTodoStatus(
+                todo.Id,
+                todo.Revision,
+                status,
+                todo.CompletionNote,
+                todo.Artifacts,
+                WriteContext.Manual());
+
+            var refreshed = Service.GetTodo(todo.Id);
+            if (refreshed is not null)
+            {
+                Ui.OpenTaskDetail(refreshed);
+            }
+
+            Ui.Toast($"「{todo.Title}」已改为{StatusLabel(status)}");
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast(ex.Message);
+        }
     }
 
     private static bool IsTerminal(TodoStatus status) =>

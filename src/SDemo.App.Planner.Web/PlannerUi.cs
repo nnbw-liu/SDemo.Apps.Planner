@@ -16,6 +16,9 @@ public sealed class PlannerUi
 
     public TodoDto? CompletingTodo { get; private set; }
 
+    /// <summary>完成弹窗的默认终态；列表勾选默认完成，详情改状态时带上用户选的那一项。</summary>
+    public TodoStatus CompletingStatus { get; private set; } = TodoStatus.Done;
+
     public bool TaskDetailOpen { get; private set; }
 
     public TodoDto? ViewingTodo { get; private set; }
@@ -86,9 +89,12 @@ public sealed class PlannerUi
         Changed?.Invoke();
     }
 
-    public void OpenComplete(TodoDto todo)
+    public void OpenComplete(TodoDto todo, TodoStatus status = TodoStatus.Done)
     {
         CompletingTodo = todo;
+        CompletingStatus = status is TodoStatus.Verified or TodoStatus.Closed or TodoStatus.Canceled
+            ? status
+            : TodoStatus.Done;
         CompleteTaskOpen = true;
         Changed?.Invoke();
     }
@@ -176,6 +182,7 @@ public sealed class PlannerUi
     {
         CompleteTaskOpen = false;
         CompletingTodo = null;
+        CompletingStatus = TodoStatus.Done;
         Changed?.Invoke();
     }
 

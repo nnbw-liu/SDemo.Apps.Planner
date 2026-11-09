@@ -8,6 +8,12 @@
 
 ## 现状（2026-11-09）
 
+✅ **Hub 桌面组件（2026-11-09）**：Host 通过 `HubServer` 提供 `/widgets/calendar` 与 `/widgets/tasks`。
+- 登记：`/v1/info` 与 `%LOCALAPPDATA%\SDemo\Hub\apps\sdemo.planner.json` 的 `widgets` 数组两处必须同步；组件页只接受 `<appId>.localhost` + host-only cookie。
+- 日历组件：月视图、日程、任务截止与假期；双击格子看当天安排。
+- 任务组件（`Components/TaskWidget.razor`）：只列 open/doing；默认 `TodoSort.Priority`（优先级升序 → 截止升序），可切截止 / 最近更新 / 创建时间；项目 + 迭代 / 小迭代筛选（选大迭代含子迭代，另有「未归入迭代」）；行内完成（完成弹窗）、延期、查看，双击看详情；详情状态下拉：非终态直接改，终态转完成弹窗；列表上限 50。
+- 验证记录：[docs/planner-widget-tasks.md](docs/planner-widget-tasks.md)。
+
 ✅ **v0.6 已实现并实机验证**：Azure DevOps 任务与冲刺只读接入。
 - 连接（v0.6，全局）：设置 →「Azure DevOps」只配连接：集合地址（到集合为止，例 `http://172.30.184.25:8088/Utilities`）+ PAT + 启用，按钮「保存 / 测试连接」（测试读认证用户 + 可见项目数）。存 `app_setting` 的 `ado.enabled|collectionUrl|pat`；PAT 只写不读（`AdoConnectionDto.HasPat` 只暴露布尔）。
 - 项目绑定（v0.6，按项目）：本地项目自己在项目页「绑定云端项目」对话框（`AdoBindingDialog`）里配云端项目（`_apis/projects` 下拉）、指派人、迭代、是否跳过已关闭，然后「立即同步 / 测试范围」。绑定存 `ado.bind.{projectId}.*`（project/assignedTo/iterations 换行分隔/skipClosed/lastSync*）。同步**不新建本地项目**，只链接已有项目（`ProjectLinked`）。
@@ -54,10 +60,10 @@
 - 搜索：默认全部状态；支持清空按钮/Esc/任务页「清除」；关键字命中标题、备注、完成说明。
 - 13 个 `todo_*` MCP 工具；app 面 `/v1/health|handshake|shutdown`；设置页可整体关闭 MCP 或逐工具关闭。
 - 宿主联调、ICS 导入 Outlook 沿用 v1；v2 月历暂不支持拖拽改期。
-- 桌面组件已于 2026-11-07 移除（`WidgetWindow`、`PlannerWidget.razor`、`widget.json` 与 widgets 路由均已删除）。宿主拉起应用时直接显示主窗口；替代方案未定，不要自行加回组件。
+- 组件（v4.3 前）曾于 2026-11-07 移除，2026-11-08 起以 DesktopAssembly Hub 组件（`/widgets/*`）恢复；当前为日历 + 任务。宿主拉起时直接显示主窗口，组件窗口由宿主另行拉起。
 - 验证记录：[docs/planner-v05.md](docs/planner-v05.md)、[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
 
-未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；桌面组件（已移除，替代方案待定）；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、评论/附件同步、`ado_*` MCP 工具。
+未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、评论/附件同步、`ado_*` MCP 工具。
 P5：outbox 合并、ICS 只读订阅。
 
 ## 目录
@@ -98,6 +104,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 
 | 改什么 | 读 |
 | --- | --- |
+| **任务桌面组件** | [docs/planner-widget-tasks.md](docs/planner-widget-tasks.md) |
 | **v0.6 Azure DevOps 接入** | [docs/planner-v06.md](docs/planner-v06.md) |
 | **v0.5 分组/MCP 开关/排序** | [docs/planner-v05.md](docs/planner-v05.md) |
 | **v4 更名/搜索/节假日** | [docs/planner-v4.md](docs/planner-v4.md) |
@@ -152,15 +159,16 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 迭代根节点的 `name` 服务端给的是项目名，展示名用路径末段（通常是「迭代」）。
 - 导入更新走整行克隆：`PlannerStore.ApplyTodoWrites` 是 `SetValues` 整行覆盖，漏字段会被写空，tags/links 也要显式带上。
 - ADO 同步不新建本地项目：必须先在事序里建项目，再去项目页绑定云端项目；绑定存 `ado.bind.{projectId}.project|assignedTo|iterations|skipClosed|lastSync*`，不是全局 `ado.*`。
-- `ListTodos` 的 `Limit` 被夹在 `PlannerConstants.MaxListLimit`（50），想看全量去 `Store.QueryProjectTodos()`，别误判成丢数据。
+- `ListTodos` 的 `Limit` 被夹在 `PlannerConstants.MaxListLimit`（50），UI 想看全量要另加查询，别误判成丢数据。
 - FTS 是迁移 SQL 建的虚表，`todo_fts` 的 rowid 存在 `todo.fts_row_id`；
   Entity 里没有 `todo_fts` 的 DbSet，别用 `EnsureCreated`。
 - 相似重复阈值 0.75；完全重复只拒绝 AI/meeting 来源，manual 不拦。
 - `outbox` + `op_log` 与实体写在同一事务，别事后补。
-- 宿主拉起时直接显示主窗口（组件已移除）；主窗口关闭仍是 `Hide()` 到托盘。
+- 宿主拉起时直接显示主窗口；组件窗口由 Hub 面 `/widgets/*` 单独提供，不依赖主窗口。主窗口关闭仍是 `Hide()` 到托盘。
 - 安装目录是 `%APPDATA%\SDemo\DesktopAssembly\apps\sdemo.planner`（不是 `%LOCALAPPDATA%`），
   宿主只扫 APPDATA；`runtime` 与日志仍在 `%LOCALAPPDATA%`。
-- app 面只剩 `/v1/health|handshake|shutdown`；不要再加 Widget 路由或 `widget.json`，否则宿主会去拉起一个不存在的组件。
+- 组件登记在 `HubServer.BuildInfo()` 与 `WriteConnectionFile()` 两处 `widgets` 数组，新增组件必须同步，否则宿主发现不到；不要再加 `widget.json`。
+- `HubServer` 的 DI 要跟桌面壳对齐：`AdoClient` / `AdoImportService` 漏注册时，组件里打开 `TaskDetailDialog` 会直接报「无法注入服务」。
 
 ## 不要读
 

@@ -57,11 +57,326 @@ body {
 
 .widget-shell::-webkit-scrollbar-thumb {
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(var(--wash-rgb), 0.14);
 }
 
 .widget-shell::-webkit-scrollbar-track {
     background: transparent;
+}
+
+/* ── 任务组件 ─────────────────────────────────────────────────────────── */
+
+/* 任务组件自己滚列表，外壳不再滚，避免工具栏被滚走。 */
+.widget-shell:has(.task-widget) {
+    overflow: hidden;
+    padding: 10px;
+}
+
+.task-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    height: 100%;
+    min-height: 0;
+}
+
+.tw-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 1px 2px 0;
+}
+
+.tw-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.tw-heading h3 {
+    font-size: 18px;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+}
+
+.tw-heading h3 small {
+    margin-left: 5px;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+.tw-head-actions {
+    display: flex;
+    gap: 1px;
+}
+
+.tw-head-actions .icon-btn {
+    width: 26px;
+    height: 26px;
+}
+
+.tw-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+}
+
+.tw-filter.selectbox {
+    width: 100%;
+    min-width: 0;
+}
+
+.tw-filter .selectbox-trigger {
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    padding: 0 9px;
+    border-radius: 9px;
+    font-size: 11.5px;
+    gap: 6px;
+}
+
+.tw-sort {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tw-sort-label {
+    color: var(--faint);
+    font-size: 10px;
+}
+
+.tw-sortbox .selectbox-trigger {
+    min-width: 0;
+    height: 27px;
+    padding: 0 8px 0 10px;
+    font-size: 11px;
+}
+
+.tw-clear {
+    margin-left: auto;
+    padding: 3px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 10.5px;
+}
+
+.tw-clear:hover {
+    background: rgba(var(--wash-rgb), 0.06);
+    color: var(--text);
+}
+
+.tw-list {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+    min-height: 0;
+    overflow-y: auto;
+    margin: 0 -4px;
+    padding: 0 4px 4px;
+}
+
+.tw-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tw-list::-webkit-scrollbar-thumb {
+    border-radius: 6px;
+    background: rgba(var(--wash-rgb), 0.12);
+}
+
+.tw-task {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 6px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.tw-task:hover {
+    background: rgba(var(--wash-rgb), 0.04);
+}
+
+.tw-task.is-overdue {
+    border-color: rgba(255, 113, 133, 0.16);
+    background: rgba(255, 113, 133, 0.035);
+}
+
+.tw-check {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+    padding: 0;
+    border: 1px solid rgba(var(--wash-rgb), 0.16);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--faint);
+    cursor: pointer;
+    transition: all 0.14s ease;
+}
+
+.tw-task:hover .tw-check {
+    border-color: rgba(var(--wash-rgb), 0.24);
+}
+
+.tw-check:hover {
+    border-color: var(--green);
+    background: rgba(74, 222, 128, 0.1);
+    color: var(--green);
+}
+
+.tw-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.tw-title-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.tw-state-dot {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--faint);
+}
+
+.tw-state-dot.open { background: #9aa6b8; }
+.tw-state-dot.doing { background: #b9a7ff; box-shadow: 0 0 0 3px rgba(163, 140, 255, 0.12); }
+.tw-state-dot.done { background: var(--green); }
+.tw-state-dot.verified { background: #5caaff; }
+.tw-state-dot.closed { background: #aab4c6; }
+.tw-state-dot.canceled { background: var(--red); }
+
+.tw-title {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 12.4px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tw-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px 8px;
+    margin-top: 3px;
+    color: var(--faint);
+    font-size: 9.8px;
+}
+
+.tw-meta .meta-item {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tw-due {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.tw-due.today { color: var(--amber); }
+.tw-due.soon { color: var(--text-soft); }
+.tw-due.overdue { color: var(--red); font-weight: 600; }
+.tw-due.none { color: var(--faint); }
+
+.tw-tail {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    flex: 0 0 auto;
+    margin-top: 0;
+}
+
+.tw-action {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.13s ease;
+}
+
+.tw-action:hover {
+    background: rgba(var(--wash-rgb), 0.07);
+    color: var(--text);
+}
+
+.tw-empty {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 22px 16px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 12px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.tw-empty .empty-emoji {
+    width: 38px;
+    height: 38px;
+    font-size: 18px;
+}
+
+.tw-empty strong {
+    color: var(--text-soft);
+    font-size: 12.5px;
+}
+
+.tw-empty p {
+    max-width: 260px;
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.55;
+}
+
+.tw-more {
+    margin: 2px 0 0;
+    padding: 4px 0;
+    color: var(--faint);
+    font-size: 10px;
+    text-align: center;
+}
+
+/* 详情里的状态下拉：跟其他字段一样低调。 */
+.detail-status-select .selectbox-trigger {
+    min-width: 104px;
+    height: 27px;
+    padding: 0 8px 0 10px;
+    font-size: 11px;
 }
 
 @media (max-width: 700px) {
