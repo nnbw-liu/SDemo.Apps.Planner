@@ -217,7 +217,7 @@ internal sealed class HubServer : IAsyncDisposable
             width = 1180,
             height = 760,
         },
-        widgets = new[]
+        widgets = new object[]
         {
             new
             {
@@ -238,6 +238,24 @@ internal sealed class HubServer : IAsyncDisposable
                 size = new { width = 480, height = 680 },
                 minSize = new { width = 360, height = 420 },
                 defaultVisible = true,
+                // 设置表单 Schema 子集（widget-contract §8）：宿主渲染「显示条数」，
+                // 存进 widgets.json 后以 ?rows=N 拼到 entry 上。
+                config = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        rows = new
+                        {
+                            type = "integer",
+                            title = "显示条数",
+                            description = "任务列表最多显示几行",
+                            minimum = PlannerConstants.WidgetTaskRowsMin,
+                            maximum = PlannerConstants.WidgetTaskRowsMax,
+                            @default = PlannerConstants.WidgetTaskRowsDefault,
+                        },
+                    },
+                },
             },
         },
     };
@@ -292,6 +310,22 @@ internal sealed class HubServer : IAsyncDisposable
                     ["size"] = new JsonObject { ["width"] = 480, ["height"] = 680 },
                     ["minSize"] = new JsonObject { ["width"] = 360, ["height"] = 420 },
                     ["defaultVisible"] = true,
+                    ["config"] = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["rows"] = new JsonObject
+                            {
+                                ["type"] = "integer",
+                                ["title"] = "显示条数",
+                                ["description"] = "任务列表最多显示几行",
+                                ["minimum"] = PlannerConstants.WidgetTaskRowsMin,
+                                ["maximum"] = PlannerConstants.WidgetTaskRowsMax,
+                                ["default"] = PlannerConstants.WidgetTaskRowsDefault,
+                            },
+                        },
+                    },
                 },
             },
         };

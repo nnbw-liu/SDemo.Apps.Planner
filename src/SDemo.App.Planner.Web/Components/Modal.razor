@@ -8,7 +8,8 @@
             </div>
             <button class="icon-btn" title="关闭" @onclick="OnClose"><Icon Name="x" Size="18" /></button>
         </header>
-        <div class="modal-body">
+        @* data-fit-ignore：正文按设计是滚动的，宿主自适应缩放不要把它当成内容溢出。 *@
+        <div class="modal-body" data-fit-ignore>
             @ChildContent
         </div>
         @if (Footer is not null)

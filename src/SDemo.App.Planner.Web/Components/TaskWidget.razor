@@ -1,11 +1,12 @@
 @inherits PlannerPageBase
-@* 桌面任务组件：只列未完成任务，默认「优先级 → 截止时间」，可按项目 / 迭代 / 小迭代筛选。 *@
+@* 桌面任务组件：只列未完成任务，默认「优先级 → 截止时间」，可按项目 / 迭代 / 小迭代筛选。
+   显示条数由宿主组件设置经入口查询串 ?rows=N 传入（WidgetTasks.razor），默认 10 条。 *@
 
 <section class="task-widget">
     <header class="tw-head">
         <div class="tw-heading">
             <span class="eyebrow">任务</span>
-            <h3>@_todos.Count<small>项未完成</small></h3>
+            <h3>@ItemsText<small>项未完成</small></h3>
         </div>
         <div class="tw-head-actions">
             <button type="button" class="icon-btn" title="新建任务" @onclick="NewTask">
@@ -64,7 +65,8 @@
     }
     else
     {
-        <div class="tw-list">
+        @* data-fit-ignore：告诉宿主「这层是滚动容器，别把它当成内容溢出自动缩放整页」。 *@
+        <div class="tw-list" data-fit-ignore>
             @foreach (var todo in _todos)
             {
                 <article class="tw-task @(DueClass(todo) == "overdue" ? "is-overdue" : "")"
@@ -117,17 +119,20 @@
                 </article>
             }
 
-            @if (_todos.Count >= ListLimit)
+            @if (_hasMore || _todos.Count >= PlannerConstants.MaxListLimit)
             {
-                <p class="tw-more">最多显示 @ListLimit 条，选项目或迭代可以缩小范围。</p>
+                <p class="tw-more">@MoreText</p>
             }
         </div>
     }
 </section>
 
 @code {
-    private const int ListLimit = 50;
     private const string NoIteration = "__none__";
+
+    /// <summary>显示条数；由宿主组件设置经 ?rows=N 下发，缺省 10，夹在 1..50。</summary>
+    [Parameter]
+    public int Rows { get; set; } = PlannerConstants.WidgetTaskRowsDefault;
 
     private string? _projectId;
     private string? _iterationId;
@@ -135,6 +140,24 @@
     private IReadOnlyList<ProjectDto> _projects = [];
     private IReadOnlyList<IterationDto> _iterations = [];
     private IReadOnlyList<TodoDto> _todos = [];
+    private bool _hasMore;
+    private bool _loaded;
+    private int _rowLimit = PlannerConstants.WidgetTaskRowsDefault;
+
+    /// <summary>实际显示条数：开启设置后由宿主传入，越界时夹紧而不是报错。</summary>
+    private int RowLimit => Math.Clamp(
+        Rows,
+        PlannerConstants.WidgetTaskRowsMin,
+        PlannerConstants.WidgetTaskRowsMax);
+
+    /// <summary>多取一条用来判断「还有更多」，同时不超过契约上限。</summary>
+    private int FetchLimit => Math.Min(RowLimit + 1, PlannerConstants.MaxListLimit);
+
+    private string ItemsText => _hasMore ? $"{_todos.Count}+" : _todos.Count.ToString(CultureInfo.InvariantCulture);
+
+    private string MoreText => _hasMore
+        ? $"只显示前 {_todos.Count} 条，可在组件设置里调大显示条数。"
+        : $"最多显示 {PlannerConstants.MaxListLimit} 条，选项目或迭代可以缩小范围。";
 
     private static readonly IReadOnlyList<SelectOption<TodoSort>> SortOptions =
     [
@@ -196,8 +219,18 @@
         }
     }
 
+    protected override void OnParametersSet()
+    {
+        // 首次由 OnInitialized 的 Reload 取数；只有宿主改了条数才重新查询。
+        if (_loaded && _rowLimit != RowLimit)
+        {
+            Reload();
+        }
+    }
+
     protected override void Reload()
     {
+        _rowLimit = RowLimit;
         _projects = Service.ListProjects();
         _iterations = Service.ListIterations();
 
@@ -219,7 +252,10 @@
             }
         }
 
-        _todos = LoadTodos();
+        var loaded = LoadTodos();
+        _hasMore = loaded.Count > _rowLimit;
+        _todos = _hasMore ? loaded.Take(_rowLimit).ToList() : loaded;
+        _loaded = true;
     }
 
     private IReadOnlyList<TodoDto> LoadTodos()
@@ -229,7 +265,7 @@
             Status = "active",
             ProjectId = _projectId,
             Sort = _sort,
-            Limit = ListLimit,
+            Limit = FetchLimit,
         };
 
         if (_iterationId is null)
@@ -239,10 +275,11 @@
 
         if (_iterationId == NoIteration)
         {
-            // 服务端不能按「迭代为空」过滤，取当前范围后在客户端收口。
-            return Service.ListTodos(query)
+            // 服务端不能按「迭代为空」过滤，取当前范围后在客户端收口；
+            // 这里要多取（不能只取 FetchLimit），否则过滤后可能误判「没有更多」。
+            return Service.ListTodos(query with { Limit = PlannerConstants.MaxListLimit })
                 .Where(t => string.IsNullOrEmpty(t.IterationId))
-                .Take(ListLimit)
+                .Take(FetchLimit)
                 .ToList();
         }
 
@@ -265,7 +302,7 @@
             .GroupBy(t => t.Id)
             .Select(g => g.First());
 
-        return SortTodos(merged).Take(ListLimit).ToList();
+        return SortTodos(merged).Take(FetchLimit).ToList();
     }
 
     /// <summary>只在本地合并多个迭代查询时使用；单次查询已由服务端排好。</summary>

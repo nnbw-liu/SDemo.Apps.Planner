@@ -11,7 +11,7 @@
 ✅ **Hub 桌面组件（2026-11-09）**：Host 通过 `HubServer` 提供 `/widgets/calendar` 与 `/widgets/tasks`。
 - 登记：`/v1/info` 与 `%LOCALAPPDATA%\SDemo\Hub\apps\sdemo.planner.json` 的 `widgets` 数组两处必须同步；组件页只接受 `<appId>.localhost` + host-only cookie。
 - 日历组件：月视图、日程、任务截止与假期；双击格子看当天安排。
-- 任务组件（`Components/TaskWidget.razor`）：只列 open/doing；默认 `TodoSort.Priority`（优先级升序 → 截止升序），可切截止 / 最近更新 / 创建时间；项目 + 迭代 / 小迭代筛选（选大迭代含子迭代，另有「未归入迭代」）；行内完成（完成弹窗）、延期、查看，双击看详情；详情状态下拉：非终态直接改，终态转完成弹窗；列表上限 50。
+- 任务组件（`Components/TaskWidget.razor`）：只列 open/doing；默认 `TodoSort.Priority`（优先级升序 → 截止升序），可切截止 / 最近更新 / 创建时间；项目 + 迭代 / 小迭代筛选（选大迭代含子迭代，另有「未归入迭代」）；行内完成（完成弹窗）、延期、查看，双击看详情；详情状态下拉：非终态直接改，终态转完成弹窗；默认显示 10 条，宿主组件设置经入口 `?rows=N` 调整（1–50），列表上限 50。
 - 验证记录：[docs/planner-widget-tasks.md](docs/planner-widget-tasks.md)。
 
 ✅ **v0.6 已实现并实机验证**：Azure DevOps 任务与冲刺只读接入。

@@ -17,7 +17,20 @@
   "entry": "/widgets/tasks",
   "size": { "width": 480, "height": 680 },
   "minSize": { "width": 360, "height": 420 },
-  "defaultVisible": true
+  "defaultVisible": true,
+  "config": {
+    "type": "object",
+    "properties": {
+      "rows": {
+        "type": "integer",
+        "title": "显示条数",
+        "description": "任务列表最多显示几行",
+        "minimum": 1,
+        "maximum": 50,
+        "default": 10
+      }
+    }
+  }
 }
 ```
 
@@ -55,10 +68,55 @@
 - 选 `open/doing`：直接 `SetTodoStatus`，保留原完成说明/产物，然后重新打开详情刷新 revision。
 - 选 `done/verified/closed/canceled`：关闭详情并打开完成弹窗，默认选中该终态（`PlannerUi.OpenComplete(todo, status)` → `CompleteTaskDialog` 初始化 `_status`）。
 
-## 上限
+## 显示条数（`rows`）
 
-复用 `TodoQuery` / `PlannerService.ListTodos`，`Limit = 50`（契约上限 `PlannerConstants.MaxListLimit`）。
-列表底部会提示「最多显示 50 条」，筛选后范围更小。要突破上限属于契约变更，需同时改 MCP schema 与文档。
+列表默认显示 **10 条**，可由宿主（DesktopAssembly）的组件设置调整。
+
+- 入口查询参数：`/widgets/tasks?rows=N`。`N` 夹在 **1–50**（`PlannerConstants.WidgetTaskRows*`，
+  上限复用 `MaxListLimit`）；空值 / 非数字回落默认 `10`。
+- 组件在 `/v1/info` 与 `%LOCALAPPDATA%\SDemo\Hub\apps\sdemo.planner.json` 的 `widgets[]` 里
+  用 `config`（`widget-contract.md §8` 的 Schema 子集）声明这个设置：
+  `properties.rows`（`integer`，`minimum=1`、`maximum=50`、`default=10`）。
+  宿主据此渲染「显示条数」，把值存进 `widgets.json`，再把 `?rows=N` 拼到 `entry` 上导航。
+- 应用侧不做持久化：`WidgetTasks.razor` 用 `[SupplyParameterFromQuery(Name = "rows")]`
+  读字符串再自行解析（非法值不抛异常），`TaskWidget.Rows` 再夹紧一次。
+- 为判断「还有更多」，查询取 `N+1` 条（不超过 50）；标题显示 `10+`，
+  列表底部提示「只显示前 10 条，可在组件设置里调大显示条数」。
+  `rows=50` 时退回旧文案「最多显示 50 条，选项目或迭代可以缩小范围」。
+- 宿主若把窗口高度固定，调大条数后仍可能需要滚动；这是窗口尺寸与条数的配合问题，
+  与「取几条」是两件事。
+
+## 与宿主自适应缩放（`data-fit-ignore`）
+
+DesktopAssembly 的组件窗口会按内容尺寸自动调 `ZoomFactor`（`WidgetWindow.FitContentAsync`
+的 `MeasureScript`：扫描所有元素，`scrollHeight > clientHeight` 即视为「内容装不下」，整页缩小）。
+它分不清「真的溢出」和「这段本来就是滚动容器」，所以任务组件会出现两种抖动：
+
+- 静止时列表本来就会滚，整页被压到 90% 左右；
+- 双击任务打开详情，`.modal-body` 的正文高度被当成溢出，整页突然缩到 50% 上下，
+  关闭后再来回跳几次（放大逻辑按 1.4× 试探）。
+
+宿主日志可对照：`组件自适应缩放：sdemo.planner/tasks x → y（需要 ... 视口 ...）`。
+
+应用侧的约定：给按设计就会滚动的容器加 `data-fit-ignore` 属性，宿主测量时跳过它。
+当前标记处：
+
+- `Components/TaskWidget.razor` 的 `.tw-list`
+- `Components/Modal.razor` 的 `.modal-body`（所有详情/编辑弹窗共用）
+
+宿主侧只需在 `MeasureScript` 的 `scan` 开头加一行：
+
+```js
+if (el.hasAttribute('data-fit-ignore')) { return; }
+```
+
+标记只影响宿主的测量，不改任何渲染；宿主还没实现时该属性无副作用。
+
+## 数据上限
+
+复用 `TodoQuery` / `PlannerService.ListTodos`，单次查询上限仍是契约里的
+`PlannerConstants.MaxListLimit = 50`。`rows` 只能在这个上限内放大；要突破 50
+属于契约变更，需同时改 MCP schema 与文档。
 
 ## 验证
 

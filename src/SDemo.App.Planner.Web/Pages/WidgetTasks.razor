@@ -5,4 +5,17 @@
 
 <PageTitle>任务</PageTitle>
 
-<TaskWidget />
+<TaskWidget Rows="RowCount" />
+
+@code {
+    /// <summary>
+    /// 显示条数：宿主组件设置把 <c>?rows=N</c> 拼到入口后面。用字符串接收，
+    /// 非法值（空 / 非数字）回落到默认 10，避免 Blazor 查询参数转换抛异常。
+    /// </summary>
+    [SupplyParameterFromQuery(Name = PlannerConstants.WidgetTaskRowsParam)]
+    public string? Rows { get; set; }
+
+    private int RowCount => int.TryParse(Rows, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rows)
+        ? rows
+        : PlannerConstants.WidgetTaskRowsDefault;
+}

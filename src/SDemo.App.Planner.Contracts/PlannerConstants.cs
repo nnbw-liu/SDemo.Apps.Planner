@@ -27,6 +27,18 @@ public static class PlannerConstants
 
     public const int DefaultListLimit = 20;
 
+    /// <summary>
+    /// 任务组件的「显示条数」参数：宿主组件设置经入口查询串 <c>?rows=N</c> 下发。
+    /// 缺省 10 条；宿主设置的值在这里夹紧，应用不做额外校验。
+    /// </summary>
+    public const string WidgetTaskRowsParam = "rows";
+
+    public const int WidgetTaskRowsDefault = 10;
+
+    public const int WidgetTaskRowsMin = 1;
+
+    public const int WidgetTaskRowsMax = MaxListLimit;
+
     /// <summary>幂等窗口：10 分钟内重复 clientRequestId 返回首次结果。</summary>
     public static readonly TimeSpan IdempotencyWindow = TimeSpan.FromMinutes(10);
 
