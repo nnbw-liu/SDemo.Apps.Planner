@@ -51,36 +51,34 @@ else
                 <button class="btn btn-primary" @onclick="() => Ui.OpenTask(projectId: _project.Id)">
                     <Icon Name="plus" Size="15" /> 添加任务
                 </button>
-                <button class="btn btn-ghost" @onclick="() => Ui.OpenIteration(_project.Id)">
-                    <Icon Name="layers" Size="15" /> 新建迭代
+                <button class="icon-btn hero-icon" title="新建迭代" aria-label="新建迭代" @onclick="() => Ui.OpenIteration(_project.Id)">
+                    <Icon Name="layers" Size="16" />
                 </button>
-                <button class="btn btn-ghost" @onclick="() => Ui.OpenProject(_project)">编辑项目</button>
+                <button class="icon-btn hero-icon" title="编辑项目" aria-label="编辑项目" @onclick="() => Ui.OpenProject(_project)">
+                    <Icon Name="edit" Size="15" />
+                </button>
                 @if (_adoEnabled)
                 {
-                    <button class="btn btn-ghost" @onclick="() => _showAdo = true">
-                        <Icon Name="link" Size="15" /> @(_adoBinding.Bound ? $"云端项目 · {_adoBinding.AdoProject}" : "绑定云端项目")
+                    <button class="icon-btn hero-icon" title="@(_adoBinding.Bound ? $"云端项目 · {_adoBinding.AdoProject}" : "绑定云端项目")" aria-label="@(_adoBinding.Bound ? "云端项目绑定" : "绑定云端项目")" @onclick="() => _showAdo = true">
+                        <Icon Name="link" Size="15" />
                     </button>
                     @if (_adoBinding.Bound)
                     {
-                        <button class="btn btn-ghost" @onclick="SyncAdo" disabled="@_adoBusy">
-                            <Icon Name="link" Size="15" /> @(_adoBusy ? "同步中…" : "从 ADO 同步")
+                        <button class="icon-btn hero-icon" title="@(_adoBusy ? "同步中…" : "从 ADO 同步")" aria-label="从 ADO 同步" @onclick="SyncAdo" disabled="@_adoBusy">
+                            <Icon Name="repeat" Size="15" />
                         </button>
                     }
                     @if (!string.IsNullOrWhiteSpace(_project.ExternalUrl))
                     {
-                        <a class="btn btn-ghost" href="@_project.ExternalUrl" target="_blank" rel="noreferrer">在 ADO 打开</a>
+                        <a class="icon-btn hero-icon" title="在 ADO 打开" aria-label="在 ADO 打开" href="@_project.ExternalUrl" target="_blank" rel="noreferrer">
+                            <Icon Name="external" Size="15" />
+                        </a>
                     }
                 }
-                <button class="btn btn-ghost btn-danger" @onclick="() => _confirmDelete = !_confirmDelete">删除</button>
+                <button class="icon-btn hero-icon danger" title="删除项目" aria-label="删除项目" @onclick="OpenDeleteProject">
+                    <Icon Name="trash" Size="15" />
+                </button>
             </div>
-            @if (_confirmDelete)
-            {
-                <div class="confirm-bar">
-                    <span>删除项目后，任务会保留但不再归属项目；迭代会一并移除。</span>
-                    <button class="btn btn-danger btn-sm" @onclick="DeleteProject">确认删除</button>
-                    <button class="btn btn-ghost btn-sm" @onclick="() => _confirmDelete = false">取消</button>
-                </div>
-            }
         </div>
         <div class="project-hero-side">
             <div class="big-ring" style="--progress:@(_project.Progress * 3.6)deg">
@@ -159,7 +157,7 @@ else
                             {
                                 <button class="icon-btn" title="完成迭代" @onclick="() => CompleteIteration(big)"><Icon Name="check" Size="15" /></button>
                             }
-                            <button class="icon-btn" title="删除迭代" @onclick="() => DeleteIteration(big)"><Icon Name="trash" Size="15" /></button>
+                            <button class="icon-btn" title="删除迭代" @onclick="() => OpenDeleteIteration(big)"><Icon Name="trash" Size="15" /></button>
                         </div>
                     </header>
 
@@ -204,7 +202,7 @@ else
                                         {
                                             <button class="icon-btn" title="完成" @onclick="() => CompleteIteration(small)"><Icon Name="check" Size="14" /></button>
                                         }
-                                        <button class="icon-btn" title="删除" @onclick="() => DeleteIteration(small)"><Icon Name="trash" Size="14" /></button>
+                                        <button class="icon-btn" title="删除" @onclick="() => OpenDeleteIteration(small)"><Icon Name="trash" Size="14" /></button>
                                     </div>
                                     @if (!Collapsed(small.Id))
                                     {
@@ -276,6 +274,58 @@ else
     {
         <AdoBindingDialog Project="_project" OnClose="CloseAdo" />
     }
+
+    @if (_deleteProject && _project is { } deleting)
+    {
+        <Modal Title="删除项目" Eyebrow="@deleting.Name" SizeClass="modal-sm" OnClose="CloseDeleteProject">
+            <ChildContent>
+                <p>项目会移入回收站，项目下的迭代会一并移除。</p>
+                @if (deleting.TotalTasks > 0)
+                {
+                    <div class="toggle-row">
+                        <label class="toggle">
+                            <input type="checkbox" @bind="_deleteProjectTasks" />
+                            <span class="toggle-track"></span>
+                            <span>同时删除项目下的 @deleting.TotalTasks 个任务</span>
+                        </label>
+                    </div>
+                    <p class="settings-footnote">
+                        不勾选：任务保留，但不再归属这个项目；勾选后任务移入回收站。
+                    </p>
+                }
+            </ChildContent>
+            <Footer>
+                <button class="btn btn-ghost" @onclick="CloseDeleteProject">取消</button>
+                <button class="btn btn-danger" @onclick="DeleteProject">删除项目</button>
+            </Footer>
+        </Modal>
+    }
+
+    @if (_deleteIterationTarget is { } iteration)
+    {
+        <Modal Title="删除迭代" Eyebrow="@iteration.Name" SizeClass="modal-sm" OnClose="CloseDeleteIteration">
+            <ChildContent>
+                <p>迭代与它的子迭代会一并移除。</p>
+                @if (IterationTaskCount(iteration) > 0)
+                {
+                    <div class="toggle-row">
+                        <label class="toggle">
+                            <input type="checkbox" @bind="_deleteIterationTasks" />
+                            <span class="toggle-track"></span>
+                            <span>同时删除该迭代下的 @IterationTaskCount(iteration) 个任务</span>
+                        </label>
+                    </div>
+                    <p class="settings-footnote">
+                        不勾选：任务保留，但不再归属这个迭代（含子迭代里的任务）；勾选后任务移入回收站。
+                    </p>
+                }
+            </ChildContent>
+            <Footer>
+                <button class="btn btn-ghost" @onclick="CloseDeleteIteration">取消</button>
+                <button class="btn btn-danger" @onclick="DeleteIteration">删除迭代</button>
+            </Footer>
+        </Modal>
+    }
 }
 
 @code {
@@ -285,7 +335,10 @@ else
     private ProjectDto? _project;
     private IReadOnlyList<TodoDto> _tasks = [];
     private bool _showDone;
-    private bool _confirmDelete;
+    private bool _deleteProject;
+    private bool _deleteProjectTasks;
+    private IterationDto? _deleteIterationTarget;
+    private bool _deleteIterationTasks;
     private bool _adoBusy;
     private bool _adoEnabled;
     private bool _showAdo;
@@ -421,10 +474,52 @@ else
     private static bool IsTerminal(TodoStatus status) =>
         status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed or TodoStatus.Canceled;
 
-    private void DeleteIteration(IterationDto iteration)
+    private void OpenDeleteIteration(IterationDto iteration)
     {
-        Service.DeleteIteration(iteration.Id, iteration.Revision);
-        Ui.Toast($"已删除迭代「{iteration.Name}」");
+        _deleteIterationTasks = false;
+        _deleteIterationTarget = iteration;
+    }
+
+    private void CloseDeleteIteration() => _deleteIterationTarget = null;
+
+    private void OpenDeleteProject()
+    {
+        _deleteProjectTasks = false;
+        _deleteProject = true;
+    }
+
+    private void CloseDeleteProject() => _deleteProject = false;
+
+    private int IterationTaskCount(IterationDto iteration)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal) { iteration.Id };
+        foreach (var child in ChildrenOf(iteration.Id))
+        {
+            ids.Add(child.Id);
+        }
+
+        return _tasks.Count(t => t.IterationId is { } id && ids.Contains(id));
+    }
+
+    private void DeleteIteration()
+    {
+        if (_deleteIterationTarget is not { } iteration)
+        {
+            return;
+        }
+
+        try
+        {
+            Service.DeleteIteration(iteration.Id, iteration.Revision, _deleteIterationTasks);
+            Ui.Toast(_deleteIterationTasks
+                ? $"已删除迭代「{iteration.Name}」，其任务已移入回收站"
+                : $"已删除迭代「{iteration.Name}」");
+            _deleteIterationTarget = null;
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast(ex.Message);
+        }
     }
 
     private void DeleteProject()
@@ -434,9 +529,17 @@ else
             return;
         }
 
-        Service.DeleteProject(_project.Id, _project.Revision);
-        Ui.Toast("项目已删除");
-        Nav.NavigateTo("/projects");
+        try
+        {
+            Service.DeleteProject(_project.Id, _project.Revision, _deleteProjectTasks);
+            _deleteProject = false;
+            Nav.NavigateTo("/projects");
+            Ui.Toast(_deleteProjectTasks ? "项目及其任务已删除" : "项目已删除");
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast(ex.Message);
+        }
     }
 
     private static string StatusLabel(ProjectStatus status) => status switch

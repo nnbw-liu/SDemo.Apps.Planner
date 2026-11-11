@@ -161,12 +161,20 @@ public sealed partial class PlannerService
             groupIds is null ? GroupsOf(id) : GroupsByIds(groupIds));
     }
 
-    public void DeleteProject(string id, int expectedRevision)
+    public void DeleteProject(string id, int expectedRevision, bool deleteTasks = false)
     {
         var row = _store.GetProject(id) ?? throw PlannerException.NotFound($"没有找到项目「{id}」");
         if (row.Revision != expectedRevision)
         {
             throw PlannerException.Conflict(row.Revision);
+        }
+
+        if (deleteTasks)
+        {
+            foreach (var todo in _store.QueryProjectTodos().Where(t => t.ProjectId == id))
+            {
+                DeleteTodo(todo.Id, todo.Revision, $"随项目「{row.Name}」删除", WriteContext.Manual());
+            }
         }
 
         _store.DeleteProject(id, NowUtc());
@@ -542,7 +550,7 @@ public sealed partial class PlannerService
             _store.QueryIterations(updated.ProjectId), _store.QueryProjectTodos());
     }
 
-    public void DeleteIteration(string id, int expectedRevision)
+    public void DeleteIteration(string id, int expectedRevision, bool deleteTasks = false)
     {
         var row = _store.GetIteration(id) ?? throw PlannerException.NotFound($"没有找到迭代「{id}」");
         if (row.Revision != expectedRevision)
@@ -550,8 +558,44 @@ public sealed partial class PlannerService
             throw PlannerException.Conflict(row.Revision);
         }
 
+        if (deleteTasks)
+        {
+            var iterationIds = DescendantIterationIds(row.ProjectId, id);
+            foreach (var todo in _store.QueryProjectTodos()
+                         .Where(t => t.IterationId is not null && iterationIds.Contains(t.IterationId!)))
+            {
+                DeleteTodo(todo.Id, todo.Revision, $"随迭代「{row.Name}」删除", WriteContext.Manual());
+            }
+        }
+
         _store.DeleteIteration(id, NowUtc());
         RaiseChanged();
+    }
+
+    /// <summary>某迭代自身 + 所有层级的子迭代 id（删除迭代时任务跟着删的判定范围）。</summary>
+    private HashSet<string> DescendantIterationIds(string? projectId, string rootId)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal) { rootId };
+        if (projectId is null)
+        {
+            return ids;
+        }
+
+        var iterations = _store.QueryIterations(projectId);
+        var grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach (var iteration in iterations)
+            {
+                if (iteration.ParentId is { } parent && ids.Contains(parent) && ids.Add(iteration.Id))
+                {
+                    grew = true;
+                }
+            }
+        }
+
+        return ids;
     }
 
     // ── 日常 ──────────────────────────────────────────────────────────────

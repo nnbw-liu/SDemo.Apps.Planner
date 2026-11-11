@@ -1198,7 +1198,17 @@ p { margin: 0; }
 .hero-copy { position: relative; z-index: 1; }
 .hero-copy h2 { margin: 7px 0 9px; font-size: 29px; line-height: 1.3; letter-spacing: -0.035em; }
 .hero-copy > p { max-width: 520px; color: var(--text-soft); font-size: 12.8px; }
-.hero-actions { display: flex; gap: 8px; margin-top: 18px; }
+.hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; min-width: 0; }
+.hero-actions .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-color: var(--line);
+    border-radius: 9px;
+    color: var(--text-soft);
+}
+.hero-actions .icon-btn:hover { color: var(--text); border-color: var(--line-strong); background: rgba(var(--wash-rgb), 0.06); }
+.hero-actions .icon-btn.danger { color: #ff9aa7; }
+.hero-actions .icon-btn.danger:hover { color: #ffb3bd; border-color: rgba(255, 113, 133, 0.35); background: rgba(255, 113, 133, 0.1); }
 
 .hero-side {
     position: relative;

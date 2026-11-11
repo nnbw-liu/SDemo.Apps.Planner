@@ -257,6 +257,9 @@
         </ChildContent>
 
         <Footer>
+            <button class="btn btn-danger btn-sm" style="margin-right:auto" @onclick="Delete">
+                @(_confirmDelete ? "确认删除" : "删除任务")
+            </button>
             <button class="btn btn-ghost" @onclick="Close">关闭</button>
             @if (!IsTerminal(todo.Status))
             {
@@ -278,6 +281,7 @@
     private string? _historyError;
     private string? _relationError;
     private bool _adoBusy;
+    private bool _confirmDelete;
 
     private static readonly IReadOnlyList<SelectOption<TodoStatus>> StatusOptions =
     [
@@ -291,6 +295,7 @@
 
     protected override void Reload()
     {
+        _confirmDelete = false;
         if (Ui.ViewingTodo is not { } todo)
         {
             _history = [];
@@ -346,6 +351,33 @@
     }
 
     private void Close() => Ui.CloseTaskDetail();
+
+    private void Delete()
+    {
+        if (Ui.ViewingTodo is not { } todo)
+        {
+            return;
+        }
+
+        if (!_confirmDelete)
+        {
+            _confirmDelete = true;
+            return;
+        }
+
+        try
+        {
+            Service.DeleteTodo(todo.Id, todo.Revision, "用户删除", WriteContext.Manual());
+            Ui.Toast("任务已移入回收站");
+            _confirmDelete = false;
+            Ui.CloseTaskDetail();
+        }
+        catch (PlannerException ex)
+        {
+            _confirmDelete = false;
+            Ui.Toast(ex.Message);
+        }
+    }
 
     private async Task PushToAdo()
     {
