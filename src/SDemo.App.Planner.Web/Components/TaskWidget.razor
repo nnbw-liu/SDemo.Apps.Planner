@@ -84,6 +84,7 @@
                                 <span class="kind @KindClass(todo.Kind)">@KindLabel(todo.Kind)</span>
                             }
                             <span class="tw-title">@todo.Title</span>
+                            <AdoBadge Source="@todo.ExternalSource" ExternalId="@todo.ExternalId" />
                             @if (todo.Priority == 1)
                             {
                                 <span class="priority-high" title="高优先级"><Icon Name="flame" Size="12" /></span>

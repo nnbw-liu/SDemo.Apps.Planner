@@ -1554,6 +1554,8 @@ p { margin: 0; }
 .project-card-top { display: flex; align-items: center; gap: 7px; }
 .project-card-top .status-pill { margin-left: auto; }
 .project-card-body { display: block; flex: 1; padding: 12px 0 14px; }
+.project-card-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.project-card-title h3 { overflow: hidden; min-width: 0; text-overflow: ellipsis; white-space: nowrap; }
 .project-card-body h3 { font-size: 16px; }
 .project-card-body p {
     display: -webkit-box;
@@ -1589,6 +1591,7 @@ p { margin: 0; }
 }
 
 .project-hero-title { display: flex; align-items: center; gap: 12px; }
+.project-hero-name { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
 .project-hero-title h1 { font-size: 27px; letter-spacing: -0.035em; }
 .project-desc { max-width: 660px; margin: 10px 0 0; color: var(--text-soft); font-size: 12.5px; }
 .confirm-bar {
@@ -1899,18 +1902,65 @@ p { margin: 0; }
     align-items: center;
     gap: 5px;
     min-width: 0;
-    padding: 2px 5px;
-    border-radius: 4px;
-    background: rgba(var(--wash-rgb), 0.038);
-    color: var(--text-soft);
-    font-size: 11px;
-    line-height: 1.5;
+    padding: 3px 6px;
+    border: 1px solid color-mix(in srgb, var(--dot, var(--accent)) 32%, transparent);
+    border-left: 3px solid color-mix(in srgb, var(--dot, var(--accent)) 78%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--dot, var(--accent)) 14%, rgba(var(--wash-rgb), 0.055));
+    color: var(--text);
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
 }
-.calendar-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.calendar-item.event { background: rgba(167, 139, 250, 0.12); color: var(--accent-2); }
-.calendar-item.done { opacity: 0.45; text-decoration: line-through; }
+.calendar-item .item-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-item:hover { border-color: color-mix(in srgb, var(--dot, var(--accent)) 52%, transparent); }
+.calendar-item.event {
+    --dot: var(--accent-2);
+    background: color-mix(in srgb, var(--accent-2) 18%, rgba(var(--wash-rgb), 0.05));
+    color: var(--accent-2);
+}
+.calendar-item.done {
+    background: color-mix(in srgb, var(--green) 11%, rgba(var(--wash-rgb), 0.045));
+    border-color: color-mix(in srgb, var(--green) 26%, transparent);
+    border-left-color: color-mix(in srgb, var(--green) 72%, transparent);
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+/* 当天完成：保留正文可读性，用绿色底 + 勾标代替整行透明/删除线。 */
+.calendar-item.completed-today {
+    background: color-mix(in srgb, var(--green) 20%, rgba(var(--wash-rgb), 0.045));
+    border-color: color-mix(in srgb, var(--green) 48%, transparent);
+    border-left-color: var(--green);
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+}
 .item-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--dot, var(--accent)); }
-.item-time { flex: 0 0 auto; color: var(--accent-2); font-size: 10px; font-style: normal; }
+.item-time { flex: 0 0 auto; color: var(--accent-2); font-size: 10.5px; font-style: normal; }
+.item-done-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--green) 24%, transparent);
+    color: var(--green);
+}
+.item-cloud {
+    flex: 0 0 auto;
+    padding: 0 3px;
+    border: 1px solid rgba(109, 141, 255, 0.32);
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 8.5px;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    line-height: 1.35;
+}
 .calendar-more { padding-left: 3px; color: var(--faint); font-size: 10px; }
 
 /* 底部当天安排（主应用，组件里不渲染） */
@@ -1950,10 +2000,19 @@ p { margin: 0; }
 .calendar-day-time { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
 .calendar-day-item .legend-dot { width: 8px; height: 8px; }
 .calendar-day-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.calendar-day-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.calendar-day-title strong { flex: 0 1 auto; min-width: 0; }
+.calendar-day-title .ado-chip,
+.calendar-day-title .done-on-chip { flex: 0 0 auto; }
 .calendar-day-main strong { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-day-main small { overflow: hidden; color: var(--faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-day-item.event .calendar-day-main strong { color: var(--accent-2); }
 .calendar-day-item.is-done .calendar-day-main strong { color: var(--muted); text-decoration: line-through; }
+.calendar-day-item.completed-today {
+    border-color: color-mix(in srgb, var(--green) 34%, transparent);
+    background: color-mix(in srgb, var(--green) 9%, rgba(var(--wash-rgb), 0.04));
+}
+.calendar-day-item.completed-today .calendar-day-main strong { color: var(--text); text-decoration: none; }
 
 /* ── 日常页 ───────────────────────────────────────────────────────────── */
 
@@ -2728,6 +2787,24 @@ p { margin: 0; }
 a.ado-chip:hover {
     border-color: rgba(109, 141, 255, 0.6);
     background: rgba(109, 141, 255, 0.2);
+}
+
+/* Azure DevOps 徽标：只有 ADO 同步来的条目出徽标，统一标成 ADO。 */
+.cloud-chip { flex: 0 0 auto; }
+
+.done-on-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    border: 1px solid color-mix(in srgb, var(--green) 38%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--green) 13%, transparent);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 
 .settings-version {

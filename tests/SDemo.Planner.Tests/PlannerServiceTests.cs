@@ -155,6 +155,37 @@ public sealed class PlannerServiceTests
     }
 
     [Fact]
+    public void CalendarRange_IncludesTasksCompletedInRange_ButNotCanceled()
+    {
+        var now = new DateTimeOffset(2026, 11, 6, 10, 0, 0, TimeSpan.Zero);
+        using var host = new TestHost(new FixedTimeProvider(now));
+        var created = host.Service.CreateTodos(
+        [
+            new TodoCreateInput { Title = "当天完成", DueAt = now.AddDays(10) },
+            new TodoCreateInput { Title = "当天到期并完成", DueAt = now.AddHours(2) },
+            new TodoCreateInput { Title = "取消的任务", DueAt = now.AddDays(10) },
+        ], WriteContext.Manual());
+
+        host.Service.CompleteTodo(created.Items[0].Id, created.Items[0].Revision, WriteContext.Manual());
+        host.Service.CompleteTodo(created.Items[1].Id, created.Items[1].Revision, WriteContext.Manual());
+        host.Service.SetTodoStatus(
+            created.Items[2].Id,
+            created.Items[2].Revision,
+            TodoStatus.Canceled,
+            null,
+            null,
+            WriteContext.Manual());
+
+        var dayStart = new DateTimeOffset(now.Date, TimeSpan.Zero);
+        var range = host.Service.CalendarRange(dayStart, dayStart.AddDays(1));
+
+        Assert.Equal(2, range.Todos.Count);
+        Assert.Contains(range.Todos, t => t.Title == "当天完成" && t.CompletedAt is not null);
+        Assert.Contains(range.Todos, t => t.Title == "当天到期并完成");
+        Assert.DoesNotContain(range.Todos, t => t.Title == "取消的任务");
+    }
+
+    [Fact]
     public void Event_Create_ReportsOverlap()
     {
         using var host = new TestHost();

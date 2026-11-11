@@ -216,7 +216,11 @@ public sealed record DraftDto
     public IReadOnlyList<string> Questions { get; init; } = [];
 }
 
-/// <summary>日历区间结果：todo 的 dueAt 是点，event 是区间。</summary>
+/// <summary>
+/// 日历区间结果：todo 的 dueAt 是点，event 是区间。
+/// 除 dueAt 落在区间内的 todo 外，completedAt 落在区间内（且未取消）的 todo 也会返回，
+/// 供日历标出「当天完成」；同一 todo 只出现一次，UI 按日期自行归类。
+/// </summary>
 public sealed record CalendarRangeDto
 {
     public required DateTimeOffset From { get; init; }

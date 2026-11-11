@@ -1,0 +1,21 @@
+@* Azure DevOps 徽标：只有从 ADO 同步来的项目/任务才显示，统一标成 ADO。 *@
+@if (IsAdo)
+{
+    <span class="ado-chip cloud-chip" title="@Title"><Icon Name="cloud" Size="10" />ADO</span>
+}
+
+@code {
+    /// <summary>外部来源；只有 <c>azure-devops</c> 才算云端条目。</summary>
+    [Parameter]
+    public string? Source { get; set; }
+
+    [Parameter]
+    public string? ExternalId { get; set; }
+
+    private bool IsAdo => Source == AdoMapper.SourceName;
+
+    private string Title =>
+        string.IsNullOrWhiteSpace(ExternalId)
+            ? "来自 Azure DevOps"
+            : $"来自 Azure DevOps #{ExternalId}";
+}

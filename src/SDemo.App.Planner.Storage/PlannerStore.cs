@@ -245,13 +245,19 @@ public sealed partial class PlannerStore
             .ToList();
     }
 
-    /// <summary>日历区间：按 dueAt 落在 [from, to) 取 todo（上限 500，防止一次拉爆 UI）。</summary>
-    public IReadOnlyList<TodoRow> QueryTodosDueRange(DateTime fromUtc, DateTime toUtc)
+    /// <summary>
+    /// 日历区间：取 dueAt 或 completedAt 落在 [from, to) 的 todo（上限 500，防止一次拉爆 UI）。
+    /// 取消（canceled）不算完成，不按 completedAt 进日历；但它的 dueAt 仍然保留在日历上。
+    /// </summary>
+    public IReadOnlyList<TodoRow> QueryTodosCalendarRange(DateTime fromUtc, DateTime toUtc)
     {
         using var db = Open();
         return db.Todos.AsNoTracking()
-            .Where(t => t.DeletedAt == null && t.DueAt != null && t.DueAt >= fromUtc && t.DueAt < toUtc)
-            .OrderBy(t => t.DueAt)
+            .Where(t => t.DeletedAt == null
+                && ((t.DueAt != null && t.DueAt >= fromUtc && t.DueAt < toUtc)
+                    || (t.CompletedAt != null && t.Status != "canceled"
+                        && t.CompletedAt >= fromUtc && t.CompletedAt < toUtc)))
+            .OrderBy(t => t.DueAt ?? t.CompletedAt)
             .Take(500)
             .ToList();
     }

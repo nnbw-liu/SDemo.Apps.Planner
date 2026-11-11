@@ -667,7 +667,7 @@ public sealed partial class PlannerService
     public CalendarRangeDto CalendarRange(DateTimeOffset from, DateTimeOffset to)
     {
         var (fromUtc, toUtc) = NormalizeRange(from, to);
-        var todos = _store.QueryTodosDueRange(fromUtc.UtcDateTime, toUtc.UtcDateTime);
+        var todos = _store.QueryTodosCalendarRange(fromUtc.UtcDateTime, toUtc.UtcDateTime);
         var events = _store.QueryEvents(fromUtc.UtcDateTime, toUtc.UtcDateTime);
 
         return new CalendarRangeDto

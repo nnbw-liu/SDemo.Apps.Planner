@@ -44,7 +44,11 @@ body {
 }
 
 .widget-shell .calendar-compact .calendar-item {
-    font-size: 10.5px;
+    /* 主应用的窄窗媒体查询会隐藏格子条目；组件本身就是日历，必须始终显示。 */
+    display: flex;
+    gap: 4px;
+    padding: 2px 5px;
+    font-size: 11px;
 }
 
 .widget-shell .calendar-grid {

@@ -26,7 +26,10 @@ else
                 <span class="project-color xl" style="--dot:@_project.Color"></span>
                 <div>
                     <div class="eyebrow">@StatusLabel(_project.Status) · @ProjectWindow(_project)</div>
-                    <h1>@_project.Name</h1>
+                    <div class="project-hero-name">
+                        <h1>@_project.Name</h1>
+                        <AdoBadge Source="@_project.ExternalSource" ExternalId="@_project.ExternalId" />
+                    </div>
                 </div>
             </div>
             @if (_project.Groups.Count > 0)

@@ -15,9 +15,10 @@
                 <span class="kind @KindClass(Todo.Kind)">@KindLabel(Todo.Kind)</span>
             }
             <span class="task-title">@Todo.Title</span>
-            @if (Todo.ExternalSource == "azure-devops" && Todo.ExternalId is not null)
+            <AdoBadge Source="@Todo.ExternalSource" ExternalId="@Todo.ExternalId" />
+            @if (ShowCompletedToday)
             {
-                <span class="ado-chip" title="来自 Azure DevOps 工作项 #@Todo.ExternalId">ADO #@Todo.ExternalId</span>
+                <span class="done-on-chip" title="当天完成"><Icon Name="check" Size="9" /> 当天完成</span>
             }
             @if (Todo.Priority == 1 && !IsTerminal)
             {
@@ -74,6 +75,10 @@
 
     [Parameter]
     public bool ShowIteration { get; set; } = true;
+
+    /// <summary>在日历里标出「当天完成」：完成时间与当前查看的日期相同。</summary>
+    [Parameter]
+    public bool ShowCompletedToday { get; set; }
 
     private static readonly IReadOnlyList<SelectOption<TodoStatus>> StatusOptions =
     [
