@@ -230,6 +230,9 @@ public sealed record CalendarRangeDto
     public IReadOnlyList<TodoDto> Todos { get; init; } = [];
 
     public IReadOnlyList<EventDto> Events { get; init; } = [];
+
+    /// <summary>截止时间（<see cref="IterationDto.EndAt"/>）落在区间内的迭代；没有截止时间的迭代不返回。</summary>
+    public IReadOnlyList<IterationDto> Iterations { get; init; } = [];
 }
 
 /// <summary>统计：完成率只统计 todo，不受 event 污染（PL-01 验收）。</summary>

@@ -155,6 +155,37 @@ public sealed class PlannerServiceTests
     }
 
     [Fact]
+    public void CalendarRange_ReturnsIterationsDueInRange()
+    {
+        using var host = new TestHost();
+        var project = host.Service.CreateProject(new ProjectInput { Name = "项目" }, WriteContext.Manual());
+        host.Service.CreateIteration(
+            new IterationInput
+            {
+                ProjectId = project.Id,
+                Level = IterationLevel.Big,
+                Name = "Alpha",
+                EndAt = At(1, 18),
+            },
+            WriteContext.Manual());
+        host.Service.CreateIteration(
+            new IterationInput
+            {
+                ProjectId = project.Id,
+                Level = IterationLevel.Big,
+                Name = "Beta",
+                StartAt = At(2, 0),
+                EndAt = At(3, 18),
+            },
+            WriteContext.Manual());
+
+        var range = host.Service.CalendarRange(At(1, 0), At(2, 0));
+
+        Assert.Single(range.Iterations);
+        Assert.Equal("Alpha", range.Iterations[0].Name);
+    }
+
+    [Fact]
     public void CalendarRange_IncludesTasksCompletedInRange_ButNotCanceled()
     {
         var now = new DateTimeOffset(2026, 11, 6, 10, 0, 0, TimeSpan.Zero);

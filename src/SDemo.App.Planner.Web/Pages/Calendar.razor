@@ -12,6 +12,7 @@
             <div class="calendar-legend">
                 <span><i class="legend-dot task"></i>任务</span>
                 <span><i class="legend-dot event"></i>日程</span>
+                <span><i class="legend-dot iteration"></i>迭代截止</span>
                 <span><i class="legend-dot done"></i>已完成</span>
                 <span><i class="legend-badge rest">休</i>休息日</span>
             </div>
@@ -65,10 +66,14 @@
                     {
                         <span class="calendar-item @item.Class @(item.Done ? "done" : "") @(item.CompletedOnDay ? "completed-today" : "")"
                               style="--dot:@item.Color"
-                              title="@(item.CompletedOnDay ? $"{item.Title} · 当天完成" : item.Title)">
+                              title="@ItemTooltip(item, cell.Date)">
                             @if (item.Kind == CalendarItemKind.Event)
                             {
                                 <i class="item-time">@item.Time</i>
+                            }
+                            else if (item.Kind == CalendarItemKind.Iteration)
+                            {
+                                <i class="item-flag">截止</i>
                             }
                             else
                             {
@@ -237,6 +242,7 @@
     private DateTime _selected = DateTime.Today;
     private IReadOnlyList<TodoDto> _tasks = [];
     private IReadOnlyList<EventDto> _events = [];
+    private IReadOnlyList<IterationDto> _iterations = [];
     private IReadOnlyDictionary<DateOnly, HolidayDto> _holidays = new Dictionary<DateOnly, HolidayDto>();
     private bool _holidayOpen;
     private bool _dayOpen;
@@ -286,6 +292,7 @@
         var range = Service.CalendarRange(from, to);
         _tasks = range.Todos;
         _events = range.Events;
+        _iterations = range.Iterations;
 
         var years = new[] { start.Year, end.Year }.Distinct();
         _holidays = years
@@ -383,6 +390,16 @@
     private static bool CompletedOn(TodoDto todo, DateTime date) =>
         IsDone(todo) && todo.CompletedAt is { } done && done.ToLocalTime().Date == date;
 
+    /// <summary>月格条目的悬浮说明：区分任务、日程和迭代截止。</summary>
+    private static string ItemTooltip(CalendarItem item, DateTime date) => item.Kind switch
+    {
+        CalendarItemKind.Event => $"{item.Title} · {item.Time}",
+        CalendarItemKind.Iteration => $"迭代「{item.Title}」· 截止 {date.ToString("M月d日", CultureInfo.GetCultureInfo("zh-CN"))}"
+            + (item.Done ? "（已结束）" : string.Empty),
+        _ when item.CompletedOnDay => $"{item.Title} · 当天完成",
+        _ => item.Title,
+    };
+
     /// <summary>当天弹窗的时间列：优先截止时间，其次当天完成时间。</summary>
     private string DayTime(TodoDto todo)
     {
@@ -427,6 +444,21 @@
                 "event"));
         }
 
+        foreach (var iteration in _iterations.Where(i => i.EndAt is { } end && end.ToLocalTime().Date == date))
+        {
+            items.Add(new CalendarItem(
+                iteration.Id,
+                CalendarItemKind.Iteration,
+                iteration.ParentName is { Length: > 0 } parent ? $"{parent} / {iteration.Name}" : iteration.Name,
+                "截止",
+                iteration.ProjectColor ?? "#4C8DFF",
+                iteration.Status is IterationStatus.Done or IterationStatus.Archived,
+                false,
+                false,
+                iteration.ExternalSource == AdoMapper.SourceName,
+                "iteration"));
+        }
+
         foreach (var todo in _tasks)
         {
             var dueOn = DueOn(todo, date);
@@ -453,8 +485,12 @@
                 "task"));
         }
 
-        // 只看完成时间进来的任务排在后面，别挤掉当天真正要做的任务和日程。
-        return items.OrderBy(i => i.CompletionOnly).ThenBy(i => i.Time).ToList();
+        // 只看完成时间进来的任务排在后面；迭代截止放最前，别被当天任务挤掉。
+        return items
+            .OrderBy(i => i.CompletionOnly)
+            .ThenBy(i => i.Kind == CalendarItemKind.Iteration ? 0 : 1)
+            .ThenBy(i => i.Time)
+            .ToList();
     }
 
     private sealed record CalendarCell(DateTime Date, bool IsCurrentMonth, bool IsWeekend);
@@ -463,6 +499,7 @@
     {
         Task,
         Event,
+        Iteration,
     }
 
     private sealed record CalendarItem(

@@ -1843,6 +1843,7 @@ p { margin: 0; }
 .legend-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
 .legend-dot.task { background: var(--accent); }
 .legend-dot.event { background: var(--accent-2); }
+.legend-dot.iteration { background: var(--amber); }
 .legend-dot.done { background: var(--green); }
 .legend-badge { display: inline-grid; place-items: center; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 4px; font-style: normal; font-size: 9px; line-height: 1; }
 .legend-badge.rest { color: #909db4; background: rgba(var(--wash-rgb), 0.06); }
@@ -1947,6 +1948,24 @@ p { margin: 0; }
     text-decoration: none;
 }
 .item-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--dot, var(--accent)); }
+/* 迭代截止：用琥珀色「截止」标签和边框，和任务/日程区分开。 */
+.calendar-item.iteration {
+    background: color-mix(in srgb, var(--amber) 16%, rgba(var(--wash-rgb), 0.045));
+    border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+    border-left-color: var(--amber);
+    color: var(--amber);
+    font-weight: 600;
+}
+.item-flag {
+    flex: 0 0 auto;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--amber) 22%, transparent);
+    color: var(--amber);
+    font-style: normal;
+    font-size: 9px;
+    line-height: 14px;
+}
 .item-time { flex: 0 0 auto; color: var(--accent-2); font-size: 10.5px; font-style: normal; }
 .item-done-flag {
     display: inline-flex;

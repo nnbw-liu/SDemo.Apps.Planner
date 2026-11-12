@@ -670,12 +670,17 @@ public sealed partial class PlannerService
         var todos = _store.QueryTodosCalendarRange(fromUtc.UtcDateTime, toUtc.UtcDateTime);
         var events = _store.QueryEvents(fromUtc.UtcDateTime, toUtc.UtcDateTime);
 
+        var iterations = ListIterations()
+            .Where(i => i.EndAt is { } end && end >= fromUtc && end < toUtc)
+            .ToList();
+
         return new CalendarRangeDto
         {
             From = fromUtc,
             To = toUtc,
             Todos = MapTodos(todos),
             Events = MapEvents(events),
+            Iterations = iterations,
         };
     }
 
