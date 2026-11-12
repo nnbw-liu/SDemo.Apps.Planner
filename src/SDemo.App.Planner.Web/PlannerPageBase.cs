@@ -16,6 +16,8 @@ public abstract class PlannerPageBase : ComponentBase, IDisposable
     [Inject]
     protected PlannerUi Ui { get; set; } = default!;
 
+    private bool _reloadQueued;
+
     protected override void OnInitialized()
     {
         Service.Changed += OnServiceChanged;
@@ -29,15 +31,31 @@ public abstract class PlannerPageBase : ComponentBase, IDisposable
 
     private void OnServiceChanged(object? sender, EventArgs e)
     {
-        if (_disposed)
+        if (_disposed || _reloadQueued)
         {
             return;
         }
 
-        _ = InvokeAsync(() =>
+        // 批量写（同步/导入/恢复）会在一瞬间连发几十次 Changed；合并成一次取数 +
+        // 一次重绘，避免 UI 线程被整页刷新反复占用。
+        _reloadQueued = true;
+        _ = InvokeAsync(async () =>
         {
-            Reload();
-            StateHasChanged();
+            try
+            {
+                await Task.Delay(150);
+                if (_disposed)
+                {
+                    return;
+                }
+
+                Reload();
+                StateHasChanged();
+            }
+            finally
+            {
+                _reloadQueued = false;
+            }
         });
     }
 

@@ -160,6 +160,8 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 导入更新走整行克隆：`PlannerStore.ApplyTodoWrites` 是 `SetValues` 整行覆盖，漏字段会被写空，tags/links 也要显式带上。
 - ADO 同步不新建本地项目：必须先在事序里建项目，再去项目页绑定云端项目；绑定存 `ado.bind.{projectId}.project|assignedTo|iterations|skipClosed|lastSync*`，不是全局 `ado.*`。
 - `ListTodos` 的 `Limit` 被夹在 `PlannerConstants.MaxListLimit`（50），UI 想看全量要另加查询，别误判成丢数据。
+- 页面取数都在 UI 线程：`PlannerPageBase.OnInitialized` 直接 `Reload()`，别在里面加重活。EF Core 首次建模 + 查询首次编译是一次性 1–3 秒成本，`Program.WarmUpQueries` 在窗口出现前跑一遍（日志「预热查询完成」），新增查询形态记得同步加进去，否则第一次切到该页会卡住窗口。
+- `PlannerPageBase.OnServiceChanged` 已做 150ms 合并：批量写（ADO 同步/导入/恢复）会连发几十次 `Changed`，不要再在页面里直接订阅 `Service.Changed` 重绘。
 - FTS 是迁移 SQL 建的虚表，`todo_fts` 的 rowid 存在 `todo.fts_row_id`；
   Entity 里没有 `todo_fts` 的 DbSet，别用 `EnsureCreated`。
 - 相似重复阈值 0.75；完全重复只拒绝 AI/meeting 来源，manual 不拦。

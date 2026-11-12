@@ -179,6 +179,11 @@ internal static class Program
         HubServer? hub)
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+
+        // EF Core 首次建模 + 各查询首次编译要 1–3 秒；这里在窗口出现前先在后台线程做掉，
+        // 否则首页 OnInitialized 里的同步取数会把窗口冻住一两秒。
+        WarmUpQueries(service);
+
         MainWindow? main = null;
         TrayIcon? tray = null;
         var allowClose = false;
@@ -283,6 +288,37 @@ internal static class Program
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// 预热数据层：EF Core 首次建模和各查询首次编译是一次性成本（实测首页冷启动 3 秒），
+    /// 提前跑一遍，页面渲染时就不会再卡 UI 线程。
+    /// </summary>
+    private static void WarmUpQueries(PlannerService service)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var now = DateTimeOffset.Now;
+            service.Home();
+            service.ListProjects();
+            service.ListIterations();
+            service.ListRoutines(DateOnly.FromDateTime(now.LocalDateTime));
+            service.ListTodos(new TodoQuery { Status = "all", Limit = PlannerConstants.MaxListLimit });
+            service.CalendarRange(now.AddDays(-7), now.AddDays(35));
+            service.ListHolidays(now.Year);
+            service.Stats();
+            service.ListDeletedTodos();
+            service.ListDeletedEvents();
+            service.ListDrafts();
+        }
+        catch (Exception ex)
+        {
+            PlannerLog.Info($"预热查询失败：{ex.Message}");
+        }
+
+        var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        PlannerLog.Info($"预热查询完成：{elapsed:F0}ms");
     }
 
     private static void PumpReminders(PlannerService service)
