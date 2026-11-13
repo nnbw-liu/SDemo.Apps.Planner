@@ -103,6 +103,61 @@ public sealed partial class PlannerService
     /// <summary>PAT 明文只留在设置表里，只给 Core 内部（<c>AdoImportService</c>）用。</summary>
     internal string? GetAdoPat() => _store.GetSetting(AdoPatKey);
 
+    /// <summary>
+    /// 「拉取 ADO 项目」：按快照的云端项目建本地项目；已经按 <c>(ExternalSource, ExternalId)</c>
+    /// 绑定过的直接复用。同名但未绑定的本地项目会拒绝，避免拉出两个一模一样名字的项目。
+    /// </summary>
+    internal AdoProjectMatch EnsureAdoProject(AdoProjectSnapshot snapshot, WriteContext context)
+    {
+        var existing = _store.GetProjectByExternal(AdoMapper.SourceName, snapshot.ExternalId);
+        if (existing is not null)
+        {
+            var dto = GetProject(existing.Id)
+                ?? throw PlannerException.NotFound("已绑定的本地项目不存在");
+            return new AdoProjectMatch(dto, false);
+        }
+
+        var name = RequireTitle(snapshot.Name);
+        var duplicate = _store.QueryProjects().FirstOrDefault(project =>
+            string.IsNullOrWhiteSpace(project.ExternalId)
+            && string.Equals(project.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (duplicate is not null)
+        {
+            throw PlannerException.Validation(
+                $"本地已有同名项目「{name}」，先到那个项目里「绑定云端项目」，或把云端项目改名后再拉取。");
+        }
+
+        var now = NowUtc();
+        var row = new ProjectRow
+        {
+            Id = NewId("pj"),
+            Name = name,
+            Description = NormalizeNotes(snapshot.Description),
+            Color = AdoDefaultColor,
+            Status = "active",
+            Sort = _store.QueryProjects().Count,
+            Revision = 1,
+            ExternalSource = AdoMapper.SourceName,
+            ExternalId = snapshot.ExternalId,
+            ExternalUrl = snapshot.Url,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        _store.WriteProject(new ProjectWrite
+        {
+            Row = row,
+            Op = "create",
+            ExpectedRevision = 0,
+            Actor = "import",
+            RequestId = context.RequestId,
+        });
+
+        RaiseChanged();
+        var created = GetProject(row.Id) ?? throw PlannerException.NotFound("新建的项目读取失败");
+        return new AdoProjectMatch(created, true);
+    }
+
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     /// <summary>迭代路径用换行分隔存一条设置（路径本身不含换行）。</summary>
@@ -712,3 +767,6 @@ public sealed partial class PlannerService
             ?? candidates.FirstOrDefault()?.Id;
     }
 }
+
+/// <summary>「拉取 ADO 项目」的落库结果：本地项目 + 是否本次新建。</summary>
+internal sealed record AdoProjectMatch(ProjectDto Project, bool Created);

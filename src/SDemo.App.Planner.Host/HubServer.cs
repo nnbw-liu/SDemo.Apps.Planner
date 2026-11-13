@@ -63,6 +63,7 @@ internal sealed class HubServer : IAsyncDisposable
         builder.Services.AddSingleton<HolidaySyncService>();
         builder.Services.AddSingleton<AdoClient>();
         builder.Services.AddSingleton<AdoImportService>();
+        builder.Services.AddSingleton<IPlatformFiles, NullPlatformFiles>();
         builder.Services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(15) });
 
         var app = builder.Build();

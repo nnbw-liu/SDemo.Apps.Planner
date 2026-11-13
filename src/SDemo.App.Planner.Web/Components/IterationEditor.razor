@@ -75,6 +75,11 @@
             <div class="form-error field-full">@_error</div>
         }
     </div>
+
+    @if (Ui.EditingIteration is { } editing)
+    {
+        <AttachmentPanel OwnerType="AttachmentOwnerTypes.Iteration" OwnerId="@editing.Id" Heading="迭代附件" />
+    }
     </ChildContent>
 
     <Footer>

@@ -7,7 +7,7 @@ namespace SDemo.App.Planner.Contracts;
 public static class PlannerConstants
 {
     public const string AppId = "sdemo.planner";
-    public const string AppVersion = "0.6.0";
+    public const string AppVersion = "0.7.0";
 
     /// <summary>宿主 API 版本（docs/contracts/host-protocol.md，主版本相同 + 次版本 ≤ 宿主）。</summary>
     public const string HostApiVersion = "1.0";
@@ -62,4 +62,10 @@ public static class PlannerConstants
     public const int MaxPlanTextChars = 20_000;
 
     public const int MaxRequestBytes = 64 * 1024;
+
+    /// <summary>单个附件上限 100 MB；超过直接拒绝，不做分片。</summary>
+    public const long MaxAttachmentBytes = 100L * 1024 * 1024;
+
+    /// <summary>附件原始文件名上限（不含目录）；超长截断，扩展名保留。</summary>
+    public const int MaxAttachmentFileNameChars = 180;
 }

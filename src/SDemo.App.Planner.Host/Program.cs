@@ -162,6 +162,7 @@ internal static class Program
         services.AddSingleton<HolidaySyncService>();
         services.AddSingleton<AdoClient>();
         services.AddSingleton<AdoImportService>();
+        services.AddSingleton<IPlatformFiles, DesktopPlatformFiles>();
         var lifecycle = new HostAppLifecycle();
         services.AddSingleton<IAppLifecycle>(lifecycle);
         services.AddSingleton<IThemeHost, HostThemeBridge>();

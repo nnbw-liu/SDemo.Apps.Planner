@@ -2,6 +2,7 @@
 @inherits PlannerPageBase
 @inject ThemeService Theme
 @inject AdoImportService Ado
+@inject IPlatformFiles Files
 
 <Modal Title="设置" Eyebrow="Preferences" SizeClass="modal-lg" OnClose="Close">
     <ChildContent>
@@ -18,6 +19,10 @@
                 <button class="settings-nav-item @(_section == "ado" ? "active" : "")" type="button" @onclick="ShowAdo">
                     <Icon Name="link" Size="15" />
                     <span>Azure DevOps</span>
+                </button>
+                <button class="settings-nav-item @(_section == "attachments" ? "active" : "")" type="button" @onclick="ShowAttachments">
+                    <Icon Name="folder" Size="15" />
+                    <span>附件存储</span>
                 </button>
             </nav>
 
@@ -126,6 +131,60 @@
                         </p>
                     </section>
                 }
+                else if (_section == "attachments")
+                {
+                    <section class="settings-section">
+                        <header class="settings-section-head">
+                            <h3>附件存储</h3>
+                            <p>任务、项目、迭代都可以挂附件，文件按条目归集在下面这个目录。单文件上限 @MaxMegabytes MB；改目录后旧文件先留在原处，再点「一键迁移」搬过来。</p>
+                        </header>
+
+                        @if (_attachError is not null)
+                        {
+                            <p class="form-error">@_attachError</p>
+                        }
+
+                        <label class="field">
+                            <span>附件目录</span>
+                            <div class="field-row">
+                                <input class="input" @bind="_attachRoot" @bind:event="oninput"
+                                       placeholder="@_attach.DefaultDirectory" />
+                                <button type="button" class="btn btn-ghost btn-sm"
+                                        @onclick="BrowseAttachRoot" disabled="@(!Files.Available)">浏览…</button>
+                            </div>
+                        </label>
+
+                        <div class="settings-attach-stats">
+                            <div><strong>@_attach.FileCount</strong><span>附件</span></div>
+                            <div><strong>@FormatSize(_attach.TotalBytes)</strong><span>占用空间</span></div>
+                            <div><strong>@MaxMegabytes MB</strong><span>单文件上限</span></div>
+                        </div>
+
+                        @if (_attach.NeedsMigration && !string.IsNullOrWhiteSpace(_attach.PreviousRootDirectory))
+                        {
+                            <p class="settings-footnote">
+                                还有附件在旧目录：@_attach.PreviousRootDirectory
+                            </p>
+                        }
+
+                        <div class="settings-ado-actions">
+                            <button type="button" class="btn btn-primary" @onclick="SaveAttach" disabled="@_attachBusy">保存</button>
+                            <button type="button" class="btn" @onclick="SaveAndMigrateAttach" disabled="@_attachBusy">保存并迁移</button>
+                            <button type="button" class="btn" @onclick="MigrateAttach"
+                                    disabled="@(_attachBusy || !_attach.NeedsMigration)">一键迁移</button>
+                            <button type="button" class="btn btn-ghost" @onclick="ResetAttachRoot" disabled="@_attachBusy">恢复默认目录</button>
+                        </div>
+
+                        @if (_attachNotice is not null)
+                        {
+                            <p class="settings-footnote">@_attachNotice</p>
+                        }
+
+                        <p class="settings-footnote">
+                            删除任务 / 项目 / 迭代会先进回收站，7 天后连同附件文件一起清理。
+                        </p>
+                    </section>
+                }
                 else
                 {
                     <section class="settings-section">
@@ -209,10 +268,19 @@
     private string? _adoNotice;
     private AdoConnectionTestDto? _adoTest;
 
+    private AttachmentSettingsDto _attach = new() { RootDirectory = string.Empty, DefaultDirectory = string.Empty };
+    private string _attachRoot = string.Empty;
+    private bool _attachBusy;
+    private string? _attachError;
+    private string? _attachNotice;
+
+    private static int MaxMegabytes => (int)(PlannerConstants.MaxAttachmentBytes / (1024 * 1024));
+
     protected override void Reload()
     {
         _mcp = Service.GetMcpSettings();
         ReloadAdo();
+        ReloadAttach();
     }
 
     private void ShowGeneral() => _section = "general";
@@ -224,6 +292,119 @@
         _section = "ado";
         ReloadAdo();
     }
+
+    private void ShowAttachments()
+    {
+        _section = "attachments";
+        ReloadAttach();
+    }
+
+    private void ReloadAttach()
+    {
+        _attach = Service.GetAttachmentSettings();
+        _attachRoot = _attach.RootDirectory;
+        _attachError = null;
+    }
+
+    private void BrowseAttachRoot()
+    {
+        var picked = Files.PickFolder("选择附件存放目录", string.IsNullOrWhiteSpace(_attachRoot) ? null : _attachRoot);
+        if (!string.IsNullOrWhiteSpace(picked))
+        {
+            _attachRoot = picked;
+            _attachNotice = "已选择目录，点「保存」生效；旧目录里的文件可用「一键迁移」搬过来。";
+        }
+    }
+
+    private void ResetAttachRoot()
+    {
+        _attachRoot = _attach.DefaultDirectory;
+        _attachNotice = "已填回默认目录，点「保存」生效。";
+    }
+
+    private void SaveAttach()
+    {
+        _attachBusy = true;
+        _attachError = null;
+        _attachNotice = null;
+        try
+        {
+            _attach = Service.SaveAttachmentSettings(new AttachmentSettingsInput
+            {
+                RootDirectory = _attachRoot,
+                Migrate = false,
+            });
+            _attachRoot = _attach.RootDirectory;
+            _attachNotice = _attach.NeedsMigration
+                ? "已保存。旧目录里还有附件，点「一键迁移」搬过来。"
+                : "已保存附件目录。";
+        }
+        catch (PlannerException ex)
+        {
+            _attachError = ex.Message;
+        }
+        finally
+        {
+            _attachBusy = false;
+        }
+    }
+
+    private void SaveAndMigrateAttach()
+    {
+        _attachBusy = true;
+        _attachError = null;
+        _attachNotice = null;
+        try
+        {
+            _attach = Service.SaveAttachmentSettings(new AttachmentSettingsInput
+            {
+                RootDirectory = _attachRoot,
+                Migrate = false,
+            });
+            var result = Service.MigrateAttachments();
+            _attach = Service.GetAttachmentSettings();
+            _attachRoot = _attach.RootDirectory;
+            _attachNotice = result.Message;
+        }
+        catch (PlannerException ex)
+        {
+            _attachError = ex.Message;
+        }
+        finally
+        {
+            _attachBusy = false;
+        }
+    }
+
+    private void MigrateAttach()
+    {
+        _attachBusy = true;
+        _attachError = null;
+        _attachNotice = null;
+        try
+        {
+            var result = Service.MigrateAttachments();
+            _attach = Service.GetAttachmentSettings();
+            _attachRoot = _attach.RootDirectory;
+            _attachNotice = result.Message;
+        }
+        catch (PlannerException ex)
+        {
+            _attachError = ex.Message;
+        }
+        finally
+        {
+            _attachBusy = false;
+        }
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):0.#} MB",
+        _ => $"{bytes / (1024.0 * 1024 * 1024):0.##} GB",
+    };
 
     private void ReloadAdo()
     {

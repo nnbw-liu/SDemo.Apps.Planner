@@ -6,7 +6,15 @@
 
 事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅。
 
-## 现状（2026-11-09）
+## 现状（2026-11-13）
+
+✅ **v0.7 已实现（构建 + 单元测试通过）**：直接拉取 ADO 项目、任务/项目/迭代附件系统。
+- 拉取项目（v0.7）：项目页筛选条「拉取 ADO 项目」→ `AdoPullDialog`：选云端项目、指派人、迭代勾选树、只同步未关闭；`AdoImportService.PullProjectAsync(AdoPullProjectInput)` 拉快照后 `PlannerService.EnsureAdoProject` 建/复用本地项目、写项目级绑定、`ApplyAdoSnapshot` 落库，`AdoSyncResultDto.ProjectCreated` 区分新建/复用，成功后可「打开项目」。
+- 同名保护（v0.7）：本地已有同名但未绑定的项目时拒绝拉取（提示先绑定或给云端项目改名），避免同一云端项目出现两份本地副本；已绑定的项目重复拉取幂等复用。
+- 附件（v0.7）：`attachment` 表（迁移 `AttachmentsV7`），owner 为 `todo|project|iteration`；`AttachmentPanel` 挂在任务详情、完成任务弹窗（完成附件）、项目详情、迭代编辑（仅编辑态）；`IPlatformFiles` 桌面实现 `DesktopPlatformFiles`（WPF 文件/目录对话框、打开文件、资源管理器定位），Hub 侧注册 `NullPlatformFiles`。
+- 附件目录（v0.7）：默认 `%APPDATA%\SDemo\Apps\sdemo.planner\attachments`，存 `attachments.rootDir` / `attachments.previousRootDir`；设置 →「附件存储」可改目录、保存并迁移、一键迁移、恢复默认；迁移复制成功后才删源，失败保留旧目录；单文件上限 `PlannerConstants.MaxAttachmentBytes` = 100 MB。
+- 附件细节（v0.7）：布局 `{root}\{ownerType}\{ownerId}\at_{id}{ext}`；SHA-256；文件名清洗、路径越界拦截；删除先软删行再删文件；`PurgeExpired` 同时清理 7 天后的附件行与宿主已删的孤儿文件。
+- 验证记录：[docs/planner-v07.md](docs/planner-v07.md)。
 
 ✅ **Hub 桌面组件（2026-11-09）**：Host 通过 `HubServer` 提供 `/widgets/calendar` 与 `/widgets/tasks`。
 - 登记：`/v1/info` 与 `%LOCALAPPDATA%\SDemo\Hub\apps\sdemo.planner.json` 的 `widgets` 数组两处必须同步；组件页只接受 `<appId>.localhost` + host-only cookie。
@@ -63,7 +71,7 @@
 - 组件（v4.3 前）曾于 2026-11-07 移除，2026-11-08 起以 DesktopAssembly Hub 组件（`/widgets/*`）恢复；当前为日历 + 任务。宿主拉起时直接显示主窗口，组件窗口由宿主另行拉起。
 - 验证记录：[docs/planner-v05.md](docs/planner-v05.md)、[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
 
-未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、评论/附件同步、`ado_*` MCP 工具。
+未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` / `attachment_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、ADO 评论/附件同步、`ado_*` MCP 工具；附件在线预览。
 P5：outbox 合并、ICS 只读订阅。
 
 ## 目录
@@ -105,6 +113,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 | 改什么 | 读 |
 | --- | --- |
 | **任务桌面组件** | [docs/planner-widget-tasks.md](docs/planner-widget-tasks.md) |
+| **v0.7 拉取 ADO 项目 / 附件** | [docs/planner-v07.md](docs/planner-v07.md) |
 | **v0.6 Azure DevOps 接入** | [docs/planner-v06.md](docs/planner-v06.md) |
 | **v0.5 分组/MCP 开关/排序** | [docs/planner-v05.md](docs/planner-v05.md) |
 | **v4 更名/搜索/节假日** | [docs/planner-v4.md](docs/planner-v4.md) |
@@ -143,6 +152,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 托盘菜单是 `XamlReader.Parse` 的自绘模板；三段 XAML 都要带 `xmlns:x`，否则启动时抛 `XamlParseException`「前缀 x 未映射」。
 - 自绘标题栏：`WindowStyle=None` + `WindowChrome`，`CaptionHeight=0` 时窗口按钮才能收到点击；拖拽靠 `TitleBar_MouseLeftButtonDown` 里 `DragMove()`。无边框最大化会盖住任务栏，必须在 `WndProc` 处理 `WM_GETMINMAXINFO` 把尺寸钉在 `rcWork`。默认 1180×740，别调回 1280×840——150% 缩放下它等于工作区，最大化看不出变化。
 - 任务行 `TaskRow` 自带状态下拉/编辑/延期，页面只需 `<TaskRow Todo="todo" />`；分组折叠键用 `"p:" + 项目Id` 与迭代 Id，别混用。
+- 任务标题的删除线只给终态 `closed` / `canceled`（`.task-row.is-closed`、`.calendar-item.closed`、`.calendar-day-item.is-closed`）；`done` / `verified` 后面还有验证与关闭两步，不画删除线，只用 `is-done` 弱化颜色。改这里要同步 `TaskRow.IsClosed`、`Calendar.IsClosed` 和 `CalendarItem.Closed`。
 - 任务行不要加 `opacity`（`is-done` 曾经用 opacity: .5）——它会让内部下拉继承半透明，并生成 stacking context，fixed 菜单被后续行盖住。弱化用颜色/子元素透明度。
 - 顶栏「新建任务」走 `MainLayout.OpenNewTask()`：路由是 `/projects/{id}` 时把 `projectId` 传给 `Ui.OpenTask`，否则新建任务会丢项目。
 - 托盘标题不要塞进 `menu.Items`（会被 WPF 包成 MenuItem 出现 hover/选中）；标题画进 `MenuTemplate`，颜色用 `{DynamicResource Tray*}`，由 `BuildMenu(dark)` 写 `menu.Resources`。
@@ -158,7 +168,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - ADO 路径两套口径：分类节点是 `项目\迭代\3.0.1`，工作项 `System.IterationPath` 是 `项目\3.0.1`（不含迭代根节点）。比对前过 `AdoMapper.NormalizePath`，并给每层注册「去掉根节点」的别名，否则全部拍平成大迭代。
 - 迭代根节点的 `name` 服务端给的是项目名，展示名用路径末段（通常是「迭代」）。
 - 导入更新走整行克隆：`PlannerStore.ApplyTodoWrites` 是 `SetValues` 整行覆盖，漏字段会被写空，tags/links 也要显式带上。
-- ADO 同步不新建本地项目：必须先在事序里建项目，再去项目页绑定云端项目；绑定存 `ado.bind.{projectId}.project|assignedTo|iterations|skipClosed|lastSync*`，不是全局 `ado.*`。
+- ADO 同步不新建本地项目（0.6 的绑定路径）：绑定存 `ado.bind.{projectId}.project|assignedTo|iterations|skipClosed|lastSync*`，不是全局 `ado.*`；0.7 的「拉取 ADO 项目」才会新建项目，走 `EnsureAdoProject`，同名未绑定项目会被拒绝。
 - `ListTodos` 的 `Limit` 被夹在 `PlannerConstants.MaxListLimit`（50），UI 想看全量要另加查询，别误判成丢数据。
 - 页面取数都在 UI 线程：`PlannerPageBase.OnInitialized` 直接 `Reload()`，别在里面加重活。EF Core 首次建模 + 查询首次编译是一次性 1–3 秒成本，`Program.WarmUpQueries` 在窗口出现前跑一遍（日志「预热查询完成」），新增查询形态记得同步加进去，否则第一次切到该页会卡住窗口。
 - `PlannerPageBase.OnServiceChanged` 已做 150ms 合并：批量写（ADO 同步/导入/恢复）会连发几十次 `Changed`，不要再在页面里直接订阅 `Service.Changed` 重绘。
@@ -170,7 +180,11 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 安装目录是 `%APPDATA%\SDemo\DesktopAssembly\apps\sdemo.planner`（不是 `%LOCALAPPDATA%`），
   宿主只扫 APPDATA；`runtime` 与日志仍在 `%LOCALAPPDATA%`。
 - 组件登记在 `HubServer.BuildInfo()` 与 `WriteConnectionFile()` 两处 `widgets` 数组，新增组件必须同步，否则宿主发现不到；不要再加 `widget.json`。
-- `HubServer` 的 DI 要跟桌面壳对齐：`AdoClient` / `AdoImportService` 漏注册时，组件里打开 `TaskDetailDialog` 会直接报「无法注入服务」。
+- `HubServer` 的 DI 要跟桌面壳对齐：`AdoClient` / `AdoImportService` / `IPlatformFiles` 漏注册时，组件里打开 `TaskDetailDialog`（含附件段）会直接报「无法注入服务」；Hub 侧必须注册 `NullPlatformFiles`，组件不弹桌面对话框。
+- 附件目录默认值在 `PlannerPaths.AttachmentsDirectory`，但实际根目录以 `app_setting` 的 `attachments.rootDir` 为准；测试里先 `SaveAttachmentSettings` 指到临时目录，否则会写到真实 `%APPDATA%`。
+- 附件迁移只在 `attachments.previousRootDir` 与当前目录不同时生效；全部成功才清空 previous（`NeedsMigration=false`），有失败要保留以便重试。
+- `dotnet ef migrations add` 用 Storage 作 startup project（EF Design 包在 Storage），并加 `--configuration Release`；用 Host 作 startup 且 Debug 输出被运行中的事序锁住时会报 MSB3027/MSB3021。
+- 附件单文件上限 100 MB 在 `AddAttachment` 入口和 UI 提示两处体现，改上限只改 `PlannerConstants.MaxAttachmentBytes`。
 
 ## 不要读
 

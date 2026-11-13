@@ -20,6 +20,9 @@ public static class PlannerPaths
 
     public static string ExportDirectory => Path.Combine(DataDirectory, "exports");
 
+    /// <summary>附件默认目录；可在「设置 → 附件」改成其它盘，改完用「一键迁移」搬文件。</summary>
+    public static string AttachmentsDirectory => Path.Combine(DataDirectory, "attachments");
+
     public static string LogDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "SDemo",

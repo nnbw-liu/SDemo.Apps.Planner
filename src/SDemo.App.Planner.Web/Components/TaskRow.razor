@@ -2,7 +2,7 @@
 @inject PlannerService Service
 @inject PlannerUi Ui
 
-<article class="task-row @(IsDone ? "is-done" : "")" @onclick="OpenDetail" title="查看详情">
+<article class="task-row @(IsDone ? "is-done" : "") @(IsClosed ? "is-closed" : "")" @onclick="OpenDetail" title="查看详情">
     <span class="task-state @StatusClass" title="状态：@StatusLabel">
         <span class="task-state-dot"></span>
         <span class="task-state-text">@StatusLabel</span>
@@ -94,6 +94,9 @@
         or TodoStatus.Closed or TodoStatus.Canceled;
 
     private bool IsDone => Todo.Status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed;
+
+    /// <summary>已关闭 / 已取消才是终态，才画删除线；已完成、已验证后面还有验证与关闭。</summary>
+    private bool IsClosed => Todo.Status is TodoStatus.Closed or TodoStatus.Canceled;
 
     private string StatusLabel => StatusLabelOf(Todo.Status);
 

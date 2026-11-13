@@ -231,6 +231,21 @@ public sealed class AdoProjectSnapshot
     public IReadOnlyList<AdoWorkItemDto> WorkItems { get; init; } = [];
 }
 
+/// <summary>「拉取 ADO 项目」的输入：不要求本地已有项目，直接按范围建一个。</summary>
+public sealed record AdoPullProjectInput
+{
+    /// <summary>云端项目名（<c>_apis/projects</c> 里的 name）。</summary>
+    public string AdoProject { get; init; } = string.Empty;
+
+    /// <summary>空 = 全部人，<c>@Me</c> = PAT 账号，或具体显示名。</summary>
+    public string? AssignedTo { get; init; }
+
+    /// <summary>勾选的迭代路径；空 = 全部迭代（自动带子节点与祖先）。</summary>
+    public IReadOnlyList<string> IterationPaths { get; init; } = [];
+
+    public bool SkipClosed { get; init; }
+}
+
 /// <summary>一次同步的统计。部分条目失败不会中断整体，失败原因进 warnings。</summary>
 public sealed record AdoSyncResultDto
 {
@@ -242,6 +257,9 @@ public sealed record AdoSyncResultDto
 
     /// <summary>本地项目第一次补上 ADO 标识（外链/徽标随之出现）。</summary>
     public bool ProjectLinked { get; set; }
+
+    /// <summary>本次拉取新建了本地项目（而不是绑定已有项目）。</summary>
+    public bool ProjectCreated { get; set; }
 
     public int IterationsCreated { get; set; }
 

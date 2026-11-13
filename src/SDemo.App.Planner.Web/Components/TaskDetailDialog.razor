@@ -208,6 +208,8 @@
                 </section>
             }
 
+            <AttachmentPanel OwnerType="AttachmentOwnerTypes.Todo" OwnerId="@todo.Id" />
+
             <section class="task-detail-section">
                 <span class="eyebrow">操作记录</span>
                 @if (_historyError is not null)

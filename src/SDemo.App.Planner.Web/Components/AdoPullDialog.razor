@@ -1,0 +1,407 @@
+@inherits PlannerPageBase
+@inject AdoImportService Ado
+@inject NavigationManager Nav
+
+<Modal Title="拉取 ADO 项目"
+       Eyebrow="Azure DevOps"
+       SizeClass="modal-lg" OnClose="Close">
+    <ChildContent>
+        <p class="settings-footnote">
+            直接从 Azure DevOps 把整个项目拉下来：会新建一个带 ADO 标识的本地项目，
+            并自动写入项目绑定。先选云端项目，再决定拉哪些迭代、谁的条目。
+        </p>
+
+        <div class="form-grid">
+            <div class="field field-full">
+                <span>云端项目</span>
+                <div class="field-row">
+                    @if (_projectOptions.Count > 0)
+                    {
+                        <SelectBox TValue="string"
+                                   Value="_adoProject"
+                                   ValueChanged="OnProjectPicked"
+                                   Options="_projectOptions"
+                                   Placeholder="选择 Azure DevOps 项目" />
+                    }
+                    else
+                    {
+                        <input class="input" placeholder="直接填项目名" @bind="_adoProject" @bind:event="oninput" />
+                    }
+                    <button type="button" class="btn btn-ghost btn-sm" @onclick="RefreshProjects" disabled="@_busy">
+                        @(_busy ? "读取中…" : "刷新项目")
+                    </button>
+                </div>
+            </div>
+
+            <div class="field field-full">
+                <span>指派人</span>
+                <div class="field-row">
+                    <SelectBox TValue="string"
+                               Value="_assignedTo"
+                               ValueChanged="value => _assignedTo = value ?? string.Empty"
+                               Options="_assigneeOptions"
+                               Placeholder="全部人" />
+                    <button type="button" class="btn btn-ghost btn-sm" @onclick="RefreshAssignees" disabled="@_busy">
+                        @(_busy ? "读取中…" : "刷新指派人")
+                    </button>
+                </div>
+            </div>
+
+            <div class="field field-full">
+                <div class="ado-scope-head">
+                    <span>迭代</span>
+                    <span class="ado-scope-count">@(_selected.Count == 0 ? "全部迭代" : $"已选 {_selected.Count} 个")</span>
+                    <span class="push-right">
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="RefreshIterations" disabled="@_busy">刷新迭代</button>
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="SelectAllIterations" disabled="@(_iterations.Count == 0)">全选</button>
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="ClearIterations" disabled="@(_selected.Count == 0)">清空</button>
+                    </span>
+                </div>
+
+                @if (_iterations.Count > 0)
+                {
+                    <div class="ado-iteration-list">
+                        @foreach (var iteration in _iterations)
+                        {
+                            var picked = IsSelected(iteration.Path);
+                            <label class="ado-iteration-row @(picked ? "is-picked" : null)" style="--depth:@iteration.Depth">
+                                <input type="checkbox" checked="@picked"
+                                       @onchange="e => ToggleIteration(iteration.Path, e.Value is true)" />
+                                <span class="ado-iteration-check"><Icon Name="check" Size="10" /></span>
+                                <span class="ado-iteration-name">@iteration.Name</span>
+                                @if (iteration.StartAt is { } start && iteration.EndAt is { } end)
+                                {
+                                    <span class="ado-iteration-dates">@start.ToLocalTime().ToString("MM-dd") – @end.ToLocalTime().ToString("MM-dd")</span>
+                                }
+                            </label>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="ado-scope-empty">不勾选 = 拉全部迭代。选一个云端项目后会自动列出它的冲刺。</p>
+                }
+            </div>
+
+            <div class="field field-full">
+                <button type="button" class="ado-toggle @(_skipClosed ? "is-on" : null)" @onclick="() => _skipClosed = !_skipClosed">
+                    <span class="ado-toggle-track"><span class="ado-toggle-thumb"></span></span>
+                    <span class="ado-toggle-label">只拉取未关闭的工作项</span>
+                    <span class="ado-toggle-note">已关闭 / 已解决的历史条目不再拉进来</span>
+                </button>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="form-error field-full">@_error</div>
+            }
+
+            @if (_notice is not null)
+            {
+                <p class="settings-footnote field-full">@_notice</p>
+            }
+
+            @if (_result is not null)
+            {
+                <p class="@(_result.Ok ? "settings-footnote" : "form-error") field-full">@_result.Message</p>
+                @if (_result.Warnings.Count > 0)
+                {
+                    <ul class="settings-warnings field-full">
+                        @foreach (var warning in _result.Warnings)
+                        {
+                            <li>@warning</li>
+                        }
+                    </ul>
+                }
+            }
+        </div>
+    </ChildContent>
+
+    <Footer>
+        @if (_result is { Ok: true, ProjectId: not null } pulled)
+        {
+            <button class="btn btn-ghost" @onclick="Close">留在这里</button>
+            <button class="btn btn-primary" @onclick="() => OpenPulled(pulled.ProjectId!)">
+                打开项目
+            </button>
+        }
+        else
+        {
+            <button class="btn btn-ghost" @onclick="Close" disabled="@_busy">取消</button>
+            <button class="btn btn-primary" @onclick="Pull" disabled="@(_busy || string.IsNullOrWhiteSpace(_adoProject))">
+                @(_busy ? "拉取中…" : "开始拉取")
+            </button>
+        }
+    </Footer>
+</Modal>
+
+@code {
+    private string _adoProject = string.Empty;
+    private string _assignedTo = string.Empty;
+    private List<SelectOption<string>> _projectOptions = [];
+    private List<SelectOption<string>> _assigneeOptions = ResetAssigneeOptions(string.Empty);
+    private List<AdoIterationRefDto> _iterations = [];
+    private List<string> _selected = [];
+    private bool _skipClosed;
+    private bool _busy;
+    private string? _error;
+    private string? _notice;
+    private AdoSyncResultDto? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshProjects();
+    }
+
+    private static List<SelectOption<string>> ResetAssigneeOptions(string current)
+    {
+        var options = new List<SelectOption<string>>
+        {
+            new(string.Empty, "全部人", "不按指派人过滤"),
+            new("@Me", "我", "PAT 对应账号"),
+        };
+
+        if (!string.IsNullOrWhiteSpace(current)
+            && !string.Equals(current, "@Me", StringComparison.OrdinalIgnoreCase)
+            && options.All(item => item.Value != current))
+        {
+            options.Add(new(current, current));
+        }
+
+        return options;
+    }
+
+    private async Task RefreshProjects()
+    {
+        _busy = true;
+        _error = null;
+        _notice = null;
+        try
+        {
+            var connection = Ado.GetConnection();
+            if (!connection.Enabled)
+            {
+                _error = "Azure DevOps 接入已关闭，先到「设置 → Azure DevOps」打开并填好连接。";
+                return;
+            }
+
+            var result = await Ado.ListProjectsAsync(null, null);
+            if (!result.Ok)
+            {
+                _error = result.Message;
+                return;
+            }
+
+            _projectOptions = result.Projects
+                .Select(item => new SelectOption<string>(item.Name, item.Name, item.ExternalId))
+                .ToList();
+
+            if (string.IsNullOrWhiteSpace(_adoProject) && _projectOptions.Count > 0)
+            {
+                _adoProject = _projectOptions[0].Value;
+                await LoadScope();
+            }
+
+            _notice = result.Projects.Count == 0 ? "这个集合里没有可见的项目。" : null;
+        }
+        catch (Exception ex) when (ex is PlannerException or HttpRequestException or TaskCanceledException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task OnProjectPicked(string value)
+    {
+        _adoProject = value ?? string.Empty;
+        _notice = null;
+        _selected = [];
+        await LoadScope();
+    }
+
+    /// <summary>切换云端项目后自动装载迭代与指派人，省掉「获取…」两步。</summary>
+    private async Task LoadScope()
+    {
+        if (string.IsNullOrWhiteSpace(_adoProject))
+        {
+            _iterations = [];
+            _assigneeOptions = ResetAssigneeOptions(_assignedTo);
+            return;
+        }
+
+        _error = null;
+        try
+        {
+            var iterations = await Ado.ListIterationsAsync(null, _adoProject.Trim(), null);
+            if (iterations.Ok)
+            {
+                _iterations = iterations.Iterations.ToList();
+            }
+            else
+            {
+                _iterations = [];
+                _error = iterations.Message;
+            }
+
+            var assignees = await Ado.ListAssigneesAsync(null, _adoProject.Trim(), null);
+            if (assignees.Ok)
+            {
+                var options = ResetAssigneeOptions(_assignedTo);
+                options.AddRange(assignees.Assignees.Select(item =>
+                    new SelectOption<string>(item.DisplayName, item.DisplayName, $"{item.WorkItemCount} 个工作项")));
+                _assigneeOptions = options;
+            }
+        }
+        catch (Exception ex) when (ex is PlannerException or HttpRequestException or TaskCanceledException)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RefreshAssignees()
+    {
+        if (string.IsNullOrWhiteSpace(_adoProject))
+        {
+            _error = "先选云端项目，再获取指派人。";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Ado.ListAssigneesAsync(null, _adoProject.Trim(), null);
+            if (!result.Ok)
+            {
+                _error = result.Message;
+                return;
+            }
+
+            var options = ResetAssigneeOptions(_assignedTo);
+            options.AddRange(result.Assignees.Select(item =>
+                new SelectOption<string>(item.DisplayName, item.DisplayName, $"{item.WorkItemCount} 个工作项")));
+            _assigneeOptions = options;
+            _notice = result.Assignees.Count == 0 ? "没有读到指派人。" : $"读到 {result.Assignees.Count} 个指派人。";
+        }
+        catch (Exception ex) when (ex is PlannerException or HttpRequestException or TaskCanceledException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RefreshIterations()
+    {
+        if (string.IsNullOrWhiteSpace(_adoProject))
+        {
+            _error = "先选云端项目，再获取迭代。";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Ado.ListIterationsAsync(null, _adoProject.Trim(), null);
+            if (!result.Ok)
+            {
+                _error = result.Message;
+                return;
+            }
+
+            _iterations = result.Iterations.ToList();
+            if (_iterations.Count == 0)
+            {
+                _notice = "这个项目还没有迭代。";
+            }
+        }
+        catch (Exception ex) when (ex is PlannerException or HttpRequestException or TaskCanceledException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private bool IsSelected(string path) =>
+        _selected.Contains(AdoMapper.NormalizePath(path), StringComparer.OrdinalIgnoreCase);
+
+    private void ToggleIteration(string path, bool selected)
+    {
+        var normalized = AdoMapper.NormalizePath(path);
+        if (selected)
+        {
+            if (!_selected.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                _selected.Add(normalized);
+            }
+        }
+        else
+        {
+            _selected.RemoveAll(item => string.Equals(item, normalized, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void SelectAllIterations() =>
+        _selected = _iterations.Select(item => AdoMapper.NormalizePath(item.Path)).ToList();
+
+    private void ClearIterations() => _selected = [];
+
+    private async Task Pull()
+    {
+        if (string.IsNullOrWhiteSpace(_adoProject))
+        {
+            _error = "先选一个云端项目。";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        _notice = null;
+        _result = null;
+        try
+        {
+            var result = await Ado.PullProjectAsync(new AdoPullProjectInput
+            {
+                AdoProject = _adoProject.Trim(),
+                AssignedTo = string.IsNullOrWhiteSpace(_assignedTo) ? null : _assignedTo.Trim(),
+                IterationPaths = _selected.ToList(),
+                SkipClosed = _skipClosed,
+            });
+
+            _result = result;
+            if (result.Ok)
+            {
+                Ui.Toast(result.Message);
+            }
+            else
+            {
+                _error = result.Message;
+            }
+        }
+        catch (Exception ex) when (ex is PlannerException or HttpRequestException or TaskCanceledException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void OpenPulled(string projectId)
+    {
+        Ui.CloseAdoPull();
+        Nav.NavigateTo($"/projects/{projectId}");
+    }
+
+    private void Close() => Ui.CloseAdoPull();
+}

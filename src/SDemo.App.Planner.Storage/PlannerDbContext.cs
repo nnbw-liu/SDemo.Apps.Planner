@@ -49,6 +49,8 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
 
     public DbSet<HolidayRow> Holidays => Set<HolidayRow>();
 
+    public DbSet<AttachmentRow> Attachments => Set<AttachmentRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TodoRow>(entity =>
@@ -138,6 +140,25 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.Property(x => x.ProjectGroupId).HasColumnName("project_group_id").HasMaxLength(64);
             entity.Property(x => x.ProjectId).HasColumnName("project_id").HasMaxLength(64);
             entity.HasIndex(x => x.ProjectId);
+        });
+
+        modelBuilder.Entity<AttachmentRow>(entity =>
+        {
+            entity.ToTable("attachment");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id").HasMaxLength(64);
+            entity.Property(x => x.OwnerType).HasColumnName("owner_type").HasMaxLength(16).IsRequired();
+            entity.Property(x => x.OwnerId).HasColumnName("owner_id").HasMaxLength(64).IsRequired();
+            entity.Property(x => x.FileName).HasColumnName("file_name").HasMaxLength(255).IsRequired();
+            entity.Property(x => x.RelativePath).HasColumnName("relative_path").HasMaxLength(512).IsRequired();
+            entity.Property(x => x.Extension).HasColumnName("extension").HasMaxLength(32);
+            entity.Property(x => x.SizeBytes).HasColumnName("size_bytes");
+            entity.Property(x => x.Sha256).HasColumnName("sha256").HasMaxLength(64);
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcConverter);
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => new { x.OwnerType, x.OwnerId });
+            entity.HasIndex(x => x.DeletedAt);
         });
 
         modelBuilder.Entity<AppSettingRow>(entity =>

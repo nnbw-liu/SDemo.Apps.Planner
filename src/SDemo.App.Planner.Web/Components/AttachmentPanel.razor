@@ -1,0 +1,222 @@
+@inherits PlannerPageBase
+@inject IPlatformFiles Files
+@* 任务 / 项目 / 迭代共用的一块附件区：文件本体在可配置目录，元数据在库。 *@
+@if (!string.IsNullOrEmpty(OwnerId))
+{
+    <section class="task-detail-section attach-panel">
+        <div class="attach-head">
+            <div class="attach-head-text">
+                <span class="eyebrow">@Heading</span>
+                <span class="attach-count">
+                    @(_items.Count == 0 ? "还没有附件" : $"{_items.Count} 个 · {FormatSize(_items.Sum(item => item.SizeBytes))}")
+                </span>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm"
+                    disabled="@(!Files.Available || _busy)" @onclick="PickAndAdd">
+                <Icon Name="upload" Size="14" /> 添加附件
+            </button>
+        </div>
+
+        @if (_error is not null)
+        {
+            <p class="attach-error">@_error</p>
+        }
+
+        @if (_items.Count == 0)
+        {
+            <p class="attach-empty">
+                @(Files.Available
+                    ? $"点「添加附件」选文件。附件按条目归集，单文件上限 {MaxMegabytes} MB。"
+                    : "当前宿主不支持添加附件，请在主窗口里操作。")
+            </p>
+        }
+        else
+        {
+            <ul class="attach-list">
+                @foreach (var item in _items)
+                {
+                    <li class="attach-row">
+                        <span class="attach-icon"><Icon Name="file" Size="16" /></span>
+                        <button type="button" class="attach-name" title="用默认程序打开"
+                                @onclick="() => Open(item)">@item.FileName</button>
+                        <span class="attach-meta">@FormatSize(item.SizeBytes) · @item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                        <span class="attach-actions">
+                            <button type="button" class="icon-btn" title="在资源管理器中显示"
+                                    @onclick="() => Reveal(item)">
+                                <Icon Name="folder" Size="14" />
+                            </button>
+                            @if (_confirmId == item.Id)
+                            {
+                                <button type="button" class="btn btn-danger btn-xs"
+                                        @onclick="() => Delete(item)">确认删除</button>
+                                <button type="button" class="btn btn-ghost btn-xs"
+                                        @onclick="CancelDelete">取消</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="icon-btn" title="删除附件"
+                                        @onclick="() => AskDelete(item)">
+                                    <Icon Name="trash" Size="14" />
+                                </button>
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+        }
+
+        <p class="attach-note">单文件上限 @MaxMegabytes MB · 存放目录在「设置 → 附件」，改目录后可一键迁移</p>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string OwnerType { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string OwnerId { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Heading { get; set; } = "附件";
+
+    private IReadOnlyList<AttachmentDto> _items = [];
+    private string? _error;
+    private string? _confirmId;
+    private string? _loadedFor;
+    private bool _busy;
+
+    private static int MaxMegabytes => (int)(PlannerConstants.MaxAttachmentBytes / (1024 * 1024));
+
+    private string OwnerKey => OwnerType + "|" + OwnerId;
+
+    protected override void OnParametersSet()
+    {
+        if (!string.Equals(_loadedFor, OwnerKey, StringComparison.Ordinal))
+        {
+            _confirmId = null;
+            Reload();
+        }
+    }
+
+    protected override void Reload()
+    {
+        if (string.IsNullOrEmpty(OwnerId))
+        {
+            _items = [];
+            return;
+        }
+
+        try
+        {
+            _items = Service.ListAttachments(OwnerType, OwnerId);
+            _error = null;
+        }
+        catch (PlannerException ex)
+        {
+            _items = [];
+            _error = ex.Message;
+        }
+
+        _loadedFor = OwnerKey;
+    }
+
+    private void PickAndAdd()
+    {
+        if (!Files.Available)
+        {
+            _error = "当前宿主不支持选文件，请从主窗口添加附件。";
+            return;
+        }
+
+        var source = Files.PickFile("选择要添加的附件");
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var added = Service.AddAttachment(OwnerType, OwnerId, source);
+            Ui.Toast($"已添加附件「{added.FileName}」");
+            Reload();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _error = "没有权限读取这个文件：" + ex.Message;
+        }
+        catch (IOException ex)
+        {
+            _error = "读取文件失败：" + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Open(AttachmentDto item)
+    {
+        var path = Service.ResolveAttachmentPath(item.Id);
+        if (path is null)
+        {
+            _error = "附件文件不在当前目录，可能还没迁移；到「设置 → 附件」执行一键迁移。";
+            return;
+        }
+
+        if (!Files.OpenFile(path))
+        {
+            _error = "打不开这个文件，可能没有关联的默认程序。";
+        }
+    }
+
+    private void Reveal(AttachmentDto item)
+    {
+        var path = Service.ResolveAttachmentPath(item.Id);
+        if (path is null)
+        {
+            _error = "附件文件不在当前目录，可能还没迁移；到「设置 → 附件」执行一键迁移。";
+            return;
+        }
+
+        if (!Files.RevealInFolder(path))
+        {
+            _error = "找不到这个文件，可能已被手动移走。";
+        }
+    }
+
+    private void AskDelete(AttachmentDto item)
+    {
+        _confirmId = item.Id;
+        _error = null;
+    }
+
+    private void CancelDelete() => _confirmId = null;
+
+    private void Delete(AttachmentDto item)
+    {
+        _confirmId = null;
+        try
+        {
+            Service.DeleteAttachment(item.Id);
+            Ui.Toast($"已删除附件「{item.FileName}」");
+            Reload();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024):0.#} MB",
+    };
+}

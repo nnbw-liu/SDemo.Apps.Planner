@@ -1127,10 +1127,38 @@ public sealed partial class PlannerService
         return full;
     }
 
-    /// <summary>回收站到期清理；返回被物理删除的条数。</summary>
+    /// <summary>回收站到期清理；返回被物理删除的条数（含附件文件）。</summary>
     public int PurgeExpired()
     {
-        var count = _store.PurgeExpired(NowUtc());
+        var now = NowUtc();
+        var count = _store.PurgeExpired(now);
+
+        var cutoff = now - PlannerConstants.RecycleBinRetention;
+        foreach (var row in _store.QueryAllAttachments(includeDeleted: true))
+        {
+            var expired = row.DeletedAt is not null && row.DeletedAt < cutoff;
+            // 宿主对象被物理清理（不是软删进回收站）时，附件一起收掉，避免孤文件。
+            var orphan = row.DeletedAt is null && !AttachmentOwnerExists(row);
+            if (!expired && !orphan)
+            {
+                continue;
+            }
+
+            try
+            {
+                TryDeleteFile(ResolveAttachmentFullPath(AttachmentRoot(), row.RelativePath));
+            }
+            catch (PlannerException)
+            {
+                // 路径异常的旧数据跳过，元数据仍可清理。
+            }
+
+            if (_store.PurgeAttachment(row.Id))
+            {
+                count++;
+            }
+        }
+
         if (count > 0)
         {
             RaiseChanged();
@@ -1138,6 +1166,14 @@ public sealed partial class PlannerService
 
         return count;
     }
+
+    private bool AttachmentOwnerExists(AttachmentRow row) => row.OwnerType switch
+    {
+        AttachmentOwnerTypes.Todo => _store.GetTodo(row.OwnerId, includeDeleted: true) is not null,
+        AttachmentOwnerTypes.Project => _store.GetProject(row.OwnerId, includeDeleted: true) is not null,
+        AttachmentOwnerTypes.Iteration => _store.GetIteration(row.OwnerId, includeDeleted: true) is not null,
+        _ => false,
+    };
 
     // ── 内部 ──────────────────────────────────────────────────────────────
 

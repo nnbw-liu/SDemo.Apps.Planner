@@ -454,6 +454,38 @@ public sealed class McpAuditRow
     public DateTime CreatedAt { get; set; }
 }
 
+/// <summary>
+/// 附件元数据。文件本体按 <see cref="RelativePath"/>（<c>ownerType/ownerId/id.ext</c>）
+/// 存放在可配置附件目录，迁移目录时只动文件、不动这张表。
+/// </summary>
+public sealed class AttachmentRow
+{
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>todo / project / iteration。</summary>
+    public string OwnerType { get; set; } = string.Empty;
+
+    public string OwnerId { get; set; } = string.Empty;
+
+    /// <summary>原始文件名（展示 / 另存用）。</summary>
+    public string FileName { get; set; } = string.Empty;
+
+    /// <summary>相对附件根目录的路径，始终用 <c>/</c> 分隔。</summary>
+    public string RelativePath { get; set; } = string.Empty;
+
+    public string Extension { get; set; } = string.Empty;
+
+    public long SizeBytes { get; set; }
+
+    public string Sha256 { get; set; } = string.Empty;
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+}
+
 /// <summary>幂等窗口：同一 clientRequestId 10 分钟内重复调用直接回放首次结果。</summary>
 public sealed class IdempotencyRow
 {

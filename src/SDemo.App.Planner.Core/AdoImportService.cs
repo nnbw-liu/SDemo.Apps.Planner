@@ -118,6 +118,93 @@ public sealed class AdoImportService(PlannerService planner, AdoClient client)
         }
     }
 
+    /// <summary>
+    /// 「直接拉取云端项目」：不要求本地先建项目。按选定的迭代 / 指派人拉快照，
+    /// 建一个带 ADO 标识的本地项目，写入绑定，再把迭代与工作项幂等落库。
+    /// </summary>
+    public async Task<AdoSyncResultDto> PullProjectAsync(AdoPullProjectInput input, CancellationToken ct = default)
+    {
+        var connection = planner.GetAdoConnection();
+        var projectName = (input.AdoProject ?? string.Empty).Trim();
+        string? localProjectId = null;
+
+        AdoSyncResultDto Failure(string message) => new()
+        {
+            Ok = false,
+            Message = message,
+            ProjectId = localProjectId,
+            SyncedAt = DateTimeOffset.UtcNow,
+        };
+
+        if (!connection.Enabled)
+        {
+            return Failure("Azure DevOps 接入已关闭，先到「设置 → Azure DevOps」打开。");
+        }
+
+        if (projectName.Length == 0)
+        {
+            return Failure("先选择要拉取的云端项目。");
+        }
+
+        var pat = planner.GetAdoPat();
+        if (string.IsNullOrWhiteSpace(pat))
+        {
+            return Failure("还没有保存 PAT，先到「设置 → Azure DevOps」填一个。");
+        }
+
+        try
+        {
+            var options = new AdoFetchOptions
+            {
+                AssignedTo = string.IsNullOrWhiteSpace(input.AssignedTo) ? null : input.AssignedTo.Trim(),
+                IterationPaths = input.IterationPaths,
+                SkipClosed = input.SkipClosed,
+            };
+
+            var snapshot = await client.FetchAsync(connection.CollectionUrl, projectName, pat, options, ct);
+            var match = planner.EnsureAdoProject(snapshot, WriteContext.Manual());
+            localProjectId = match.Project.Id;
+
+            planner.SaveAdoBinding(localProjectId, new AdoBindingInput
+            {
+                AdoProject = projectName,
+                AssignedTo = options.AssignedTo,
+                IterationPaths = options.IterationPaths,
+                SkipClosed = options.SkipClosed,
+            });
+
+            var result = planner.ApplyAdoSnapshot(snapshot, localProjectId);
+            result.ProjectCreated = match.Created;
+            if (match.Created)
+            {
+                result.Message = "已拉取新项目：" + result.Message;
+            }
+
+            planner.RecordAdoSync(localProjectId, result);
+            return result;
+        }
+        catch (PlannerException ex)
+        {
+            var failure = Failure(ex.Message);
+            if (localProjectId is not null)
+            {
+                planner.RecordAdoSync(localProjectId, failure);
+            }
+
+            return failure;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            var failure = Failure($"连不上 Azure DevOps：{ex.Message}");
+            if (localProjectId is not null)
+            {
+                planner.RecordAdoSync(localProjectId, failure);
+            }
+
+            return failure;
+        }
+    }
+
     /// <summary>单任务「从云端同步」：按 ADO 当前内容覆盖本地这一条。</summary>
     public async Task<AdoWorkItemSyncResultDto> PullTodoAsync(string todoId, CancellationToken ct = default)
     {

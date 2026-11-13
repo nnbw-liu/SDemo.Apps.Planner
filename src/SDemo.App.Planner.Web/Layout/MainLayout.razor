@@ -142,6 +142,10 @@
 {
     <ProjectGroupManager />
 }
+@if (Ui.AdoPullOpen)
+{
+    <AdoPullDialog />
+}
 @if (Ui.IterationEditorOpen)
 {
     <IterationEditor />

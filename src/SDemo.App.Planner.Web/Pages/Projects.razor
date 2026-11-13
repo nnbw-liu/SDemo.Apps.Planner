@@ -1,5 +1,6 @@
 @page "/projects"
 @inherits PlannerPageBase
+@inject AdoImportService Ado
 
 <PageTitle>项目 · 事序</PageTitle>
 
@@ -28,7 +29,13 @@
             <span class="chip-count">@current.ProjectCount</span>
         </button>
     }
-    <button class="btn btn-ghost btn-sm push-right" @onclick="Ui.OpenProjectGroups">
+    @if (_adoEnabled)
+    {
+        <button class="btn btn-ghost btn-sm push-right" @onclick="Ui.OpenAdoPull">
+            <Icon Name="download" Size="14" /> 拉取 ADO 项目
+        </button>
+    }
+    <button class="btn btn-ghost btn-sm @(_adoEnabled ? "" : "push-right")" @onclick="Ui.OpenProjectGroups">
         <Icon Name="layers" Size="14" /> 管理分组
     </button>
 </div>
@@ -98,6 +105,7 @@ else
     private string _groupId = "all";
     private IReadOnlyList<ProjectDto> _projects = [];
     private IReadOnlyList<ProjectGroupDto> _groups = [];
+    private bool _adoEnabled;
 
     private static readonly (string Key, string Label)[] Filters =
     [
@@ -133,6 +141,7 @@ else
     {
         _projects = Service.ListProjects();
         _groups = Service.ListProjectGroups();
+        _adoEnabled = Ado.GetConnection().Enabled;
         if (_groupId != "all" && _groups.All(g => g.Id != _groupId))
         {
             _groupId = "all";

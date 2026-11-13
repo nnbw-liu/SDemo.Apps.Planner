@@ -40,6 +40,8 @@
             <small class="form-hint">会随任务一起保存，之后在任务详情里还能看到。</small>
         </label>
 
+        <AttachmentPanel OwnerType="AttachmentOwnerTypes.Todo" OwnerId="@_todo.Id" Heading="完成附件" />
+
         @if (_error is not null)
         {
             <div class="form-error field-full">@_error</div>

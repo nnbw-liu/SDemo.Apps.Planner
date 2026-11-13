@@ -41,6 +41,9 @@ public sealed class PlannerUi
 
     public bool SettingsOpen { get; private set; }
 
+    /// <summary>「拉取 ADO 项目」弹窗；入口在项目页，不要求先建本地项目。</summary>
+    public bool AdoPullOpen { get; private set; }
+
     public bool ProjectEditorOpen { get; private set; }
 
     public ProjectDto? EditingProject { get; private set; }
@@ -175,6 +178,18 @@ public sealed class PlannerUi
     public void CloseSettings()
     {
         SettingsOpen = false;
+        Changed?.Invoke();
+    }
+
+    public void OpenAdoPull()
+    {
+        AdoPullOpen = true;
+        Changed?.Invoke();
+    }
+
+    public void CloseAdoPull()
+    {
+        AdoPullOpen = false;
         Changed?.Invoke();
     }
 

@@ -64,7 +64,7 @@
                     }
                     @foreach (var item in items.Take(MaxCellItems))
                     {
-                        <span class="calendar-item @item.Class @(item.Done ? "done" : "") @(item.CompletedOnDay ? "completed-today" : "")"
+                        <span class="calendar-item @item.Class @(item.Done ? "done" : "") @(item.Closed ? "closed" : "") @(item.CompletedOnDay ? "completed-today" : "")"
                               style="--dot:@item.Color"
                               title="@ItemTooltip(item, cell.Date)">
                             @if (item.Kind == CalendarItemKind.Event)
@@ -200,7 +200,7 @@
                     @foreach (var todo in SelectedTasks)
                     {
                         var completedToday = CompletedOn(todo, _selected);
-                        <button class="calendar-day-item task @(IsDone(todo) ? "is-done" : "") @(completedToday ? "completed-today" : "")" @onclick="() => ShowTask(todo)">
+                        <button class="calendar-day-item task @(IsDone(todo) ? "is-done" : "") @(IsClosed(todo) ? "is-closed" : "") @(completedToday ? "completed-today" : "")" @onclick="() => ShowTask(todo)">
                             <span class="calendar-day-time">@DayTime(todo)</span>
                             <i class="legend-dot" style="--dot:@(todo.ProjectColor ?? "#4C8DFF"); background:var(--dot)"></i>
                             <span class="calendar-day-main">
@@ -383,6 +383,10 @@
     private static bool IsDone(TodoDto todo) =>
         todo.Status is TodoStatus.Done or TodoStatus.Verified or TodoStatus.Closed;
 
+    /// <summary>已关闭 / 已取消才是终态；已完成、已验证后面还有验证与关闭两步，不画删除线。</summary>
+    private static bool IsClosed(TodoDto todo) =>
+        todo.Status is TodoStatus.Closed or TodoStatus.Canceled;
+
     private static bool DueOn(TodoDto todo, DateTime date) =>
         todo.DueAt is { } due && due.ToLocalTime().Date == date;
 
@@ -441,6 +445,7 @@
                 false,
                 false,
                 false,
+                false,
                 "event"));
         }
 
@@ -452,6 +457,7 @@
                 iteration.ParentName is { Length: > 0 } parent ? $"{parent} / {iteration.Name}" : iteration.Name,
                 "截止",
                 iteration.ProjectColor ?? "#4C8DFF",
+                iteration.Status is IterationStatus.Done or IterationStatus.Archived,
                 iteration.Status is IterationStatus.Done or IterationStatus.Archived,
                 false,
                 false,
@@ -479,6 +485,7 @@
                 time,
                 todo.ProjectColor ?? "#4C8DFF",
                 IsDone(todo),
+                IsClosed(todo),
                 completedOn,
                 completedOn && !dueOn,
                 todo.ExternalSource == AdoMapper.SourceName,
@@ -509,6 +516,7 @@
         string Time,
         string Color,
         bool Done,
+        bool Closed,
         bool CompletedOnDay,
         bool CompletionOnly,
         bool Cloud,
