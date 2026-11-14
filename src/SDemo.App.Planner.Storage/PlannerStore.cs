@@ -30,6 +30,9 @@ public sealed partial class PlannerStore
 
     public string DatabasePath { get; }
 
+    /// <summary>link 表变化（创建/替换/删除）后触发；KB 引用同步用它立即补登记。</summary>
+    public event Action? LinksChanged;
+
     public PlannerDbContext Open() => new(_options);
 
     /// <summary>启动时单实例迁移 + 默认清单种子。</summary>
@@ -527,6 +530,7 @@ public sealed partial class PlannerStore
 
             db.SaveChanges();
             transaction.Commit();
+            NotifyLinksChanged();
         }
         catch (Exception ex) when (IsLocked(ex))
         {
@@ -565,6 +569,7 @@ public sealed partial class PlannerStore
 
             db.SaveChanges();
             transaction.Commit();
+            NotifyLinksChanged();
         }
         catch (Exception ex) when (IsLocked(ex))
         {
@@ -929,8 +934,20 @@ public sealed partial class PlannerStore
         }
     }
 
-    private static void ReplaceLinks(PlannerDbContext db, string ownerType, string ownerId, IReadOnlyList<string> links)
+    /// <summary>事件不能让业务写失败；订阅者异常吞掉。</summary>
+    private void NotifyLinksChanged()
     {
+        try
+        {
+            LinksChanged?.Invoke();
+        }
+        catch (Exception)
+        {
+            // 同步是派生动作，失败由后台下一轮重试。
+        }
+    }
+
+    private static void ReplaceLinks(PlannerDbContext db, string ownerType, string ownerId, IReadOnlyList<string> links)    {
         var existing = db.Links.Where(l => l.OwnerType == ownerType && l.OwnerId == ownerId).ToList();
         db.Links.RemoveRange(existing);
 

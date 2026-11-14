@@ -311,6 +311,8 @@ public sealed class KbRefSyncService : IDisposable
 
     public void Dispose() => _http.Dispose();
 
+    internal void LogError(string message) => _log?.Invoke(message);
+
     private sealed record KbConfig(string RefsUrl, string Token);
 }
 
@@ -331,17 +333,58 @@ public sealed record KbRefSyncResult(
 public sealed class KbRefSyncLoop : IDisposable
 {
     private readonly KbRefSyncService _service;
+    private readonly PlannerStore _store;
     private readonly CancellationTokenSource _cts = new();
+    private readonly ManualResetEventSlim _wake = new(false);
     private readonly Task _task;
 
     public KbRefSyncLoop(PlannerStore store, Action<string>? log = null, TimeSpan? interval = null)
     {
+        _store = store;
         _service = new KbRefSyncService(store, log);
-        _task = Task.Run(() => _service.RunAsync(interval ?? TimeSpan.FromSeconds(30), _cts.Token));
+        store.LinksChanged += Wake;
+        _task = Task.Run(() => RunAsync(interval ?? TimeSpan.FromSeconds(30), _cts.Token));
+    }
+
+    /// <summary>写操作后可主动触发一次；不需要等 30 秒轮询。</summary>
+    public void Trigger() => _wake.Set();
+
+    private void Wake() => _wake.Set();
+
+    private async Task RunAsync(TimeSpan interval, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await _service.SyncOnceAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _service.LogError($"KB 引用同步异常：{ex.Message}");
+            }
+
+            try
+            {
+                // 等到轮询时间或 LinksChanged 事件；事件先到就立即再跑一轮。
+                _wake.Wait(interval, cancellationToken);
+                _wake.Reset();
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
     }
 
     public void Dispose()
     {
+        _store.LinksChanged -= Wake;
+        _wake.Set();
         _cts.Cancel();
         try
         {
@@ -353,6 +396,7 @@ public sealed class KbRefSyncLoop : IDisposable
         }
 
         _service.Dispose();
+        _wake.Dispose();
         _cts.Dispose();
     }
 }
