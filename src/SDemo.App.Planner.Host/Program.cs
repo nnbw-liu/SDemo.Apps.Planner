@@ -116,6 +116,9 @@ internal static class Program
             return 3;
         }
 
+        // 后台把 Planner 的 sdemo.kb 链接登记到 KB；KB 未启动时自动跳过，稍后重试。
+        using var kbRefSync = new KbRefSyncLoop(store, PlannerLog.Info);
+
         HubServer? hub = null;
         try
         {

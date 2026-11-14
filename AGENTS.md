@@ -9,6 +9,8 @@
 ## 现状（2026-11-13）
 
 ✅ **v0.7 已实现（构建 + 单元测试通过）**：直接拉取 ADO 项目、任务/项目/迭代附件系统。
+
+- **KB 引用登记（2026-11-14）**：`KbRefSyncLoop` 每 30 秒扫描 `link` 表里的 `sdemo.kb/doc/...@v#...`，通过 `POST /v1/refs` 登记、移除后 `POST /v1/refs/retract`；token 读 `%LOCALAPPDATA%\SDemo\Hub\apps\sdemo.kb\tokens\sdemo.planner.token`，端点读同目录上一级的 `sdemo.kb.json`；KB 未启动时跳过，不阻塞 Planner。无 `@版本` 的 KB 链接会被跳过（登记进去会让影响面漂）。
 - 拉取项目（v0.7）：项目页筛选条「拉取 ADO 项目」→ `AdoPullDialog`：选云端项目、指派人、迭代勾选树、只同步未关闭；`AdoImportService.PullProjectAsync(AdoPullProjectInput)` 拉快照后 `PlannerService.EnsureAdoProject` 建/复用本地项目、写项目级绑定、`ApplyAdoSnapshot` 落库，`AdoSyncResultDto.ProjectCreated` 区分新建/复用，成功后可「打开项目」。
 - 同名保护（v0.7）：本地已有同名但未绑定的项目时拒绝拉取（提示先绑定或给云端项目改名），避免同一云端项目出现两份本地副本；已绑定的项目重复拉取幂等复用。
 - 附件（v0.7）：`attachment` 表（迁移 `AttachmentsV7`），owner 为 `todo|project|iteration`；`AttachmentPanel` 挂在任务详情、完成任务弹窗（完成附件）、项目详情、迭代编辑（仅编辑态）；`IPlatformFiles` 桌面实现 `DesktopPlatformFiles`（WPF 文件/目录对话框、打开文件、资源管理器定位），Hub 侧注册 `NullPlatformFiles`。

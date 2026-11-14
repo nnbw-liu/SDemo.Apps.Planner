@@ -371,6 +371,17 @@ public sealed partial class PlannerStore
         return result;
     }
 
+    /// <summary>KB 引用登记同步用：拿到全部跨应用链接（只读）。</summary>
+    public IReadOnlyList<LinkRow> GetAllLinks()
+    {
+        using var db = Open();
+        return db.Links.AsNoTracking()
+            .OrderBy(l => l.OwnerType)
+            .ThenBy(l => l.OwnerId)
+            .ThenBy(l => l.CreatedAt)
+            .ToList();
+    }
+
     public IReadOnlyList<TodoTitleRow> QueryOpenTitles(int limit)
     {
         using var db = Open();
