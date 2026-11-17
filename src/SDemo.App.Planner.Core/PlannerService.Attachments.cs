@@ -294,7 +294,7 @@ public sealed partial class PlannerService
     {
         if (!AttachmentOwnerTypes.IsSupported(ownerType))
         {
-            throw PlannerException.Validation("附件只能挂在任务、项目或迭代上");
+            throw PlannerException.Validation("附件只能挂在任务、项目、迭代或任务进展上");
         }
 
         if (!IsSafeAttachmentSegment(ownerId))
@@ -307,6 +307,7 @@ public sealed partial class PlannerService
             AttachmentOwnerTypes.Todo => _store.GetTodo(ownerId) is not null,
             AttachmentOwnerTypes.Project => _store.GetProject(ownerId) is not null,
             AttachmentOwnerTypes.Iteration => _store.GetIteration(ownerId) is not null,
+            AttachmentOwnerTypes.Progress => _store.GetTodoProgress(ownerId) is not null,
             _ => false,
         };
 

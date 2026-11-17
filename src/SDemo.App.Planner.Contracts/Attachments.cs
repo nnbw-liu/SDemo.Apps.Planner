@@ -1,7 +1,7 @@
 namespace SDemo.App.Planner.Contracts;
 
 /// <summary>
-/// 附件宿主类型。附件跟任务 / 项目 / 迭代走，不单独有「附件库」页面，
+/// 附件宿主类型。附件跟任务 / 项目 / 迭代 / 任务进展走，不单独有「附件库」页面，
 /// 但文件实体集中存放在可配置目录里（设置 → 附件），支持整体迁移。
 /// </summary>
 public static class AttachmentOwnerTypes
@@ -10,8 +10,11 @@ public static class AttachmentOwnerTypes
     public const string Project = "project";
     public const string Iteration = "iteration";
 
+    /// <summary>任务的阶段性进展；进展是任务的从属记录，附件按进展归集。</summary>
+    public const string Progress = "progress";
+
     public static bool IsSupported(string? ownerType) =>
-        ownerType is Todo or Project or Iteration;
+        ownerType is Todo or Project or Iteration or Progress;
 }
 
 /// <summary>附件元数据。文件本体落在 <see cref="AttachmentSettingsDto.RootDirectory"/> 下的相对路径里。</summary>

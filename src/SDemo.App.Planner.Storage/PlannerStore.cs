@@ -809,6 +809,16 @@ public sealed partial class PlannerStore
                 RemoveFtsRow(connection, existing.FtsRowId);
                 db.TodoTags.RemoveRange(db.TodoTags.Where(x => x.TodoId == row.Id));
                 db.Links.RemoveRange(db.Links.Where(l => l.OwnerType == "todo" && l.OwnerId == row.Id));
+
+                // 进展是任务的从属记录：任务物理清理时一并删掉；它们挂的附件行会
+                // 在下一次 PurgeExpired 的孤儿附件扫描里随文件一起清掉。
+                var progressRows = db.TodoProgress.Where(p => p.TodoId == row.Id).ToList();
+                foreach (var progress in progressRows)
+                {
+                    db.TodoProgress.Remove(progress);
+                    AddOpLog(db, "progress", progress.Id, "purge", Json(progress), null, "system", null, "所属任务已清理");
+                }
+
                 db.Todos.Remove(existing);
                 AddOutbox(db, "todo", row.Id, "purge", existing.Revision, row);
                 AddOpLog(db, "todo", row.Id, "purge", Json(existing), null, write.Actor, write.RequestId, write.Reason);

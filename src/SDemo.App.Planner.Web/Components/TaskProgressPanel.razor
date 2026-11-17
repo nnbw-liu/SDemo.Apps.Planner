@@ -1,0 +1,375 @@
+@inherits PlannerPageBase
+@inject IPlatformFiles Files
+@* 任务阶段性进展：每条记录一个阶段（方案、开发、联调、验收…），可写正文、整体百分比、
+   这一阶段的产物链接，并可单独挂附件。只读时间线按发生时间倒序展示。 *@
+<section class="task-detail-section progress-panel">
+    <div class="task-detail-section-head">
+        <span class="eyebrow">阶段进展</span>
+        @if (_items.Count > 0)
+        {
+            <span class="progress-count">@_items.Count 条@(LatestPercent is null ? "" : $" · 整体 {LatestPercent}%")</span>
+        }
+        <button type="button" class="btn btn-ghost btn-sm push-right"
+                @onclick="OpenAdd" disabled="@_busy">
+            <Icon Name="plus" Size="13" /> 记录进展
+        </button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="progress-error">@_error</p>
+    }
+
+    @if (_items.Count == 0 && !_editorOpen)
+    {
+        <p class="task-detail-notes empty">
+            还没有阶段记录。每完成一个阶段就记一条：写清这一步做了什么、现在整体到哪、产物放在哪。
+        </p>
+    }
+
+    @if (_items.Count > 0)
+    {
+        <div class="progress-meter" title="最近一次填写的整体进度">
+            <span style="width:@(LatestPercent ?? 0)%"></span>
+        </div>
+        <ol class="progress-list">
+            @foreach (var item in _items.OrderByDescending(i => i.OccurredAt).ThenByDescending(i => i.CreatedAt))
+            {
+                <li class="progress-card">
+                    <div class="progress-card-head">
+                        <span class="progress-dot"><Icon Name="layers" Size="12" /></span>
+                        <div class="progress-card-title">
+                            <strong>@item.Title</strong>
+                            <time>@item.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd")</time>
+                        </div>
+                        @if (item.Percent is not null)
+                        {
+                            <span class="progress-percent">@item.Percent%</span>
+                        }
+                        <span class="progress-actions">
+                            <button type="button" class="icon-btn" title="编辑这条进展"
+                                    @onclick="() => OpenEdit(item)">
+                                <Icon Name="edit" Size="13" />
+                            </button>
+                            @if (_confirmDeleteId == item.Id)
+                            {
+                                <button type="button" class="btn btn-danger btn-xs" @onclick="() => Delete(item)">确认删除</button>
+                                <button type="button" class="btn btn-ghost btn-xs" @onclick="CancelDelete">取消</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="icon-btn" title="删除这条进展"
+                                        @onclick="() => AskDelete(item)">
+                                    <Icon Name="trash" Size="13" />
+                                </button>
+                            }
+                        </span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(item.Notes))
+                    {
+                        <p class="progress-notes">@item.Notes</p>
+                    }
+
+                    @if (item.Artifacts.Count > 0)
+                    {
+                        <ul class="task-detail-artifacts progress-artifacts">
+                            @foreach (var artifact in item.Artifacts)
+                            {
+                                <li>
+                                    @if (Uri.TryCreate(artifact, UriKind.Absolute, out var uri))
+                                    {
+                                        <a href="@uri" target="_blank" rel="noreferrer">@artifact</a>
+                                    }
+                                    else
+                                    {
+                                        <span>@artifact</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+
+                    <div class="progress-card-foot">
+                        <button type="button" class="btn btn-ghost btn-xs"
+                                @onclick="() => ToggleAttachments(item.Id)">
+                            <Icon Name="folder" Size="12" />
+                            @(item.AttachmentCount == 0 ? "添加附件" : $"附件 {item.AttachmentCount}")
+                        </button>
+                        @if (item.AttachmentCount > 0)
+                        {
+                            <span class="progress-foot-hint">文件已收进附件目录</span>
+                        }
+                    </div>
+
+                    @if (_attachmentsFor == item.Id)
+                    {
+                        <AttachmentPanel OwnerType="AttachmentOwnerTypes.Progress"
+                                         OwnerId="@item.Id"
+                                         Heading="阶段附件" />
+                    }
+                </li>
+            }
+        </ol>
+    }
+
+    @if (_editorOpen)
+    {
+        <div class="progress-editor">
+            <div class="progress-editor-head">
+                <strong>@(_editingId is null ? "记一条进展" : "编辑进展")</strong>
+                <button type="button" class="icon-btn" title="收起" @onclick="CancelEditor">
+                    <Icon Name="x" Size="14" />
+                </button>
+            </div>
+            <div class="progress-editor-grid">
+                <label class="field">
+                    <span>阶段</span>
+                    <input class="input" placeholder="例如：方案评审 / 接口联调 / 验收" maxlength="@PlannerConstants.MaxProgressTitleChars"
+                           @bind="_title" @bind:event="oninput" />
+                </label>
+                <label class="field">
+                    <span>日期</span>
+                    <input class="input" type="date" value="@_date"
+                           @onchange="e => _date = DateValue(e)" />
+                </label>
+                <label class="field">
+                    <span>整体进度（%）</span>
+                    <input class="input" type="number" min="0" max="100" placeholder="可不填"
+                           @bind="_percent" @bind:event="oninput" />
+                </label>
+            </div>
+            <label class="field field-full">
+                <span>这一步做了什么</span>
+                <textarea class="input textarea" rows="3" maxlength="@PlannerConstants.MaxProgressNotesChars"
+                          placeholder="完成了什么、卡在哪、下一步是什么…"
+                          @bind="_notes"></textarea>
+            </label>
+            <label class="field field-full">
+                <span>产物 / 链接</span>
+                <textarea class="input textarea" rows="2"
+                          placeholder="一行一个：文档链接、提交号、构建产物路径…"
+                          @bind="_artifacts"></textarea>
+            </label>
+            <p class="progress-editor-hint">
+                单条最多 @PlannerConstants.MaxProgressArtifacts 个产物 · 文件类产物建议直接挂附件，链接写在这里
+            </p>
+            <div class="progress-editor-actions">
+                <button type="button" class="btn btn-ghost" @onclick="CancelEditor">取消</button>
+                <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="Save">
+                    <Icon Name="check" Size="13" /> @(_busy ? "保存中…" : "保存")
+                </button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string TodoId { get; set; } = string.Empty;
+
+    private IReadOnlyList<TodoProgressDto> _items = [];
+    private string? _loadedFor;
+    private bool _editorOpen;
+    private bool _busy;
+    private string? _editingId;
+    private string _title = string.Empty;
+    private string _date = string.Empty;
+    private string _percent = string.Empty;
+    private string _notes = string.Empty;
+    private string _artifacts = string.Empty;
+    private string? _error;
+    private string? _confirmDeleteId;
+    private string? _attachmentsFor;
+
+    private int? LatestPercent => _items
+        .Where(item => item.Percent is not null)
+        .OrderBy(item => item.OccurredAt)
+        .LastOrDefault()?.Percent;
+
+    protected override void OnParametersSet()
+    {
+        if (!string.Equals(_loadedFor, TodoId, StringComparison.Ordinal))
+        {
+            _editorOpen = false;
+            _confirmDeleteId = null;
+            _attachmentsFor = null;
+            Reload();
+        }
+    }
+
+    protected override void Reload()
+    {
+        if (string.IsNullOrEmpty(TodoId))
+        {
+            _items = [];
+            return;
+        }
+
+        try
+        {
+            _items = Service.ListTodoProgress(TodoId);
+            _error = null;
+        }
+        catch (PlannerException ex)
+        {
+            _items = [];
+            _error = ex.Message;
+        }
+
+        _loadedFor = TodoId;
+    }
+
+    private void OpenAdd()
+    {
+        _editingId = null;
+        _title = string.Empty;
+        _date = DateTime.Now.ToString("yyyy-MM-dd");
+        _percent = string.Empty;
+        _notes = string.Empty;
+        _artifacts = string.Empty;
+        _editorOpen = true;
+        _error = null;
+    }
+
+    private void OpenEdit(TodoProgressDto item)
+    {
+        _editingId = item.Id;
+        _title = item.Title;
+        _date = item.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd");
+        _percent = item.Percent?.ToString() ?? string.Empty;
+        _notes = item.Notes ?? string.Empty;
+        _artifacts = string.Join("\n", item.Artifacts);
+        _editorOpen = true;
+        _error = null;
+    }
+
+    private void CancelEditor()
+    {
+        _editorOpen = false;
+        _error = null;
+    }
+
+    private void Save()
+    {
+        int? percent = null;
+        if (!string.IsNullOrWhiteSpace(_percent))
+        {
+            if (!int.TryParse(_percent.Trim(), out var parsed) || parsed is < 0 or > 100)
+            {
+                _error = "整体进度要填 0 到 100 之间的整数。";
+                return;
+            }
+
+            percent = parsed;
+        }
+
+        var artifacts = _artifacts
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+        var occurredAt = OccurredAt();
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            if (_editingId is null)
+            {
+                Service.AddTodoProgress(
+                    TodoId,
+                    new TodoProgressInput
+                    {
+                        Title = _title,
+                        Notes = _notes,
+                        Percent = percent,
+                        Artifacts = artifacts,
+                        OccurredAt = occurredAt,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("已记录进展");
+            }
+            else
+            {
+                var item = _items.First(i => i.Id == _editingId);
+                Service.UpdateTodoProgress(
+                    item.Id,
+                    item.Revision,
+                    new TodoProgressPatch
+                    {
+                        Title = _title,
+                        Notes = _notes,
+                        ClearNotes = string.IsNullOrWhiteSpace(_notes),
+                        Percent = percent,
+                        ClearPercent = percent is null,
+                        Artifacts = artifacts,
+                        ClearArtifacts = artifacts.Count == 0,
+                        OccurredAt = occurredAt,
+                    },
+                    WriteContext.Manual());
+                Ui.Toast("已更新进展");
+            }
+
+            _editorOpen = false;
+            _editingId = null;
+            Reload();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void AskDelete(TodoProgressDto item)
+    {
+        _confirmDeleteId = item.Id;
+        _error = null;
+    }
+
+    private void CancelDelete() => _confirmDeleteId = null;
+
+    private void Delete(TodoProgressDto item)
+    {
+        _confirmDeleteId = null;
+        try
+        {
+            Service.DeleteTodoProgress(item.Id, item.Revision, null, WriteContext.Manual());
+            Ui.Toast("已删除这条进展");
+            if (_editingId == item.Id)
+            {
+                _editorOpen = false;
+                _editingId = null;
+            }
+
+            if (_attachmentsFor == item.Id)
+            {
+                _attachmentsFor = null;
+            }
+
+            Reload();
+        }
+        catch (PlannerException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void ToggleAttachments(string progressId) =>
+        _attachmentsFor = _attachmentsFor == progressId ? null : progressId;
+
+    private DateTimeOffset OccurredAt()
+    {
+        if (DateTime.TryParseExact(_date, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var date))
+        {
+            return new DateTimeOffset(date.Date.Add(DateTime.Now.TimeOfDay));
+        }
+
+        return DateTimeOffset.Now;
+    }
+}

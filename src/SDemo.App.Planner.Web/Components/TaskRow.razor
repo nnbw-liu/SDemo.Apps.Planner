@@ -47,6 +47,16 @@
             {
                 <span class="meta-item">#@string.Join(" #", Todo.Tags.Take(2))</span>
             }
+            @if (Todo.ProgressCount > 0)
+            {
+                <span class="meta-item progress-mini"
+                      title="@(Todo.ProgressPercent is null ? $"{Todo.ProgressCount} 条阶段进展" : $"整体进度 {Todo.ProgressPercent}% · {Todo.ProgressCount} 条阶段进展")">
+                    <span class="progress-mini-bar">
+                        <span style="width:@(Todo.ProgressPercent ?? 0)%"></span>
+                    </span>
+                    @(Todo.ProgressPercent is null ? $"{Todo.ProgressCount} 条进展" : $"{Todo.ProgressPercent}%")
+                </span>
+            }
         </div>
     </div>
 

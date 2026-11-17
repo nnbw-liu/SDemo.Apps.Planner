@@ -14,7 +14,8 @@ public static class PlannerMapper
         string? listName = null,
         string? projectName = null,
         string? projectColor = null,
-        string? iterationName = null) =>
+        string? iterationName = null,
+        TodoProgressSummaryDto? progress = null) =>
         new()
         {
             Id = row.Id,
@@ -46,6 +47,9 @@ public static class PlannerMapper
             ExternalRev = row.ExternalRev,
             Tags = tags,
             Links = links,
+            ProgressCount = progress?.Count ?? 0,
+            ProgressPercent = progress?.Percent,
+            LatestProgressTitle = progress?.LatestTitle,
             CreatedAt = ToDto(row.CreatedAt)!.Value,
             UpdatedAt = ToDto(row.UpdatedAt)!.Value,
             DeletedAt = ToDto(row.DeletedAt),

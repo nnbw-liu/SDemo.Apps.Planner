@@ -6,7 +6,15 @@
 
 事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅。
 
-## 现状（2026-11-13）
+## 现状（2026-11-16）
+
+✅ **v0.8 已实现（构建 + 单元测试通过）**：任务阶段进展（progress）。
+- 进展（v0.8）：`todo_progress` 表（迁移 `ProgressV8`），一条 = 一个阶段；`title`（≤80）、`notes`（≤2000）、可选 `percent` 0–100、`artifacts_json`；`revision` 独立并发，软删 + 回收站。
+- 服务（v0.8）：`PlannerService.Progress.cs` 提供 `ListTodoProgress / AddTodoProgress / UpdateTodoProgress / DeleteTodoProgress`；`TodoProgressPatch` 是合并语义（`ClearNotes/ClearPercent/ClearArtifacts` 显式清空）；超 100 条报 `LIMIT`，revision 不符报 `CONFLICT`。
+- 汇总（v0.8）：`MapTodos` 一次 `QueryProgressForTodos` 得到 `TodoDto.ProgressCount / ProgressPercent（最近一条带百分比的）/ LatestProgressTitle`，列表行显示进度胶囊；不写 `todo.revision`。
+- 附件（v0.8）：`AttachmentOwnerTypes.Progress`；进展可挂附件，路径 `{root}\progress\{progressId}\...`；进展物理清理后文件由 `PurgeExpired` 的孤儿扫描收掉。
+- 界面（v0.8）：`TaskProgressPanel` 插在任务详情「任务说明」与关联 Bug 之间——时间线卡片、内联编辑器、产物链接、折叠附件面板；`TaskRow` meta 末尾进度胶囊。
+- 验证记录：[docs/planner-v08.md](docs/planner-v08.md)。
 
 ✅ **v0.7 已实现（构建 + 单元测试通过）**：直接拉取 ADO 项目、任务/项目/迭代附件系统。
 
@@ -73,7 +81,7 @@
 - 组件（v4.3 前）曾于 2026-11-07 移除，2026-11-08 起以 DesktopAssembly Hub 组件（`/widgets/*`）恢复；当前为日历 + 任务。宿主拉起时直接显示主窗口，组件窗口由宿主另行拉起。
 - 验证记录：[docs/planner-v05.md](docs/planner-v05.md)、[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
 
-未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` / `attachment_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、ADO 评论/附件同步、`ado_*` MCP 工具；附件在线预览。
+未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` / `attachment_*` / `progress_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、ADO 评论/附件同步、`ado_*` MCP 工具；附件在线预览。
 P5：outbox 合并、ICS 只读订阅。
 
 ## 目录
@@ -114,6 +122,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 
 | 改什么 | 读 |
 | --- | --- |
+| **任务阶段进展** | [docs/planner-v08.md](docs/planner-v08.md) |
 | **任务桌面组件** | [docs/planner-widget-tasks.md](docs/planner-widget-tasks.md) |
 | **v0.7 拉取 ADO 项目 / 附件** | [docs/planner-v07.md](docs/planner-v07.md) |
 | **v0.6 Azure DevOps 接入** | [docs/planner-v06.md](docs/planner-v06.md) |
@@ -187,6 +196,9 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 附件迁移只在 `attachments.previousRootDir` 与当前目录不同时生效；全部成功才清空 previous（`NeedsMigration=false`），有失败要保留以便重试。
 - `dotnet ef migrations add` 用 Storage 作 startup project（EF Design 包在 Storage），并加 `--configuration Release`；用 Host 作 startup 且 Debug 输出被运行中的事序锁住时会报 MSB3027/MSB3021。
 - 附件单文件上限 100 MB 在 `AddAttachment` 入口和 UI 提示两处体现，改上限只改 `PlannerConstants.MaxAttachmentBytes`。
+- 进展（v0.8）不走 `todo.revision`：列表/详情里的 `ProgressCount/ProgressPercent/LatestProgressTitle` 是 `MapTodos` 现算的，改进展不会让任务行编辑弹窗报 `CONFLICT`；要改任务本身仍按任务 `revision`。
+- 进展删软删后 7 天由 `PurgeExpiredProgress` 物理清理，进展附件随后被 `PurgeExpired` 的孤儿扫描删文件；删除任务时 `ApplyTodoWrites` 的 purge 分支级联清进展行，不要另写一套。
+- 新增附件 owner（如进展）必须同步三处：`AttachmentOwnerTypes.IsSupported`、`EnsureAttachmentOwner`、`AttachmentOwnerExists`，否则附件要么挂不上、要么删任务后文件永远不回收。
 
 ## 不要读
 

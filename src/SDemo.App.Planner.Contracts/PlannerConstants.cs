@@ -7,7 +7,7 @@ namespace SDemo.App.Planner.Contracts;
 public static class PlannerConstants
 {
     public const string AppId = "sdemo.planner";
-    public const string AppVersion = "0.7.0";
+    public const string AppVersion = "0.8.0";
 
     /// <summary>宿主 API 版本（docs/contracts/host-protocol.md，主版本相同 + 次版本 ≤ 宿主）。</summary>
     public const string HostApiVersion = "1.0";
@@ -68,4 +68,16 @@ public static class PlannerConstants
 
     /// <summary>附件原始文件名上限（不含目录）；超长截断，扩展名保留。</summary>
     public const int MaxAttachmentFileNameChars = 180;
+
+    /// <summary>单条任务最多 100 条进展；超过要求先清理旧记录，避免详情页无限膨胀。</summary>
+    public const int MaxProgressPerTodo = 100;
+
+    /// <summary>阶段名上限。</summary>
+    public const int MaxProgressTitleChars = 80;
+
+    /// <summary>阶段说明上限；比任务说明短，鼓励写结论而不是贴长文。</summary>
+    public const int MaxProgressNotesChars = 2000;
+
+    /// <summary>单条进展的产物上限（每个 500 字符，与完成产物同一口径）。</summary>
+    public const int MaxProgressArtifacts = 30;
 }

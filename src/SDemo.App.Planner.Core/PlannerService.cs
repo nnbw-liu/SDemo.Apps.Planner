@@ -1132,6 +1132,7 @@ public sealed partial class PlannerService
     {
         var now = NowUtc();
         var count = _store.PurgeExpired(now);
+        count += _store.PurgeExpiredProgress(now);
 
         var cutoff = now - PlannerConstants.RecycleBinRetention;
         foreach (var row in _store.QueryAllAttachments(includeDeleted: true))
@@ -1172,6 +1173,7 @@ public sealed partial class PlannerService
         AttachmentOwnerTypes.Todo => _store.GetTodo(row.OwnerId, includeDeleted: true) is not null,
         AttachmentOwnerTypes.Project => _store.GetProject(row.OwnerId, includeDeleted: true) is not null,
         AttachmentOwnerTypes.Iteration => _store.GetIteration(row.OwnerId, includeDeleted: true) is not null,
+        AttachmentOwnerTypes.Progress => _store.GetTodoProgress(row.OwnerId, includeDeleted: true) is not null,
         _ => false,
     };
 
@@ -1587,6 +1589,7 @@ public sealed partial class PlannerService
             .ToDictionary(p => p.Id, p => p, StringComparer.Ordinal);
         var iterations = _store.QueryIterations(includeDeleted: true)
             .ToDictionary(i => i.Id, i => i, StringComparer.Ordinal);
+        var progress = LoadProgressSummaries(ids);
 
         return valid.Select(row =>
         {
@@ -1599,7 +1602,8 @@ public sealed partial class PlannerService
                 row.ListId is null ? null : lists.GetValueOrDefault(row.ListId),
                 project?.Name,
                 project?.Color,
-                iteration?.Name);
+                iteration?.Name,
+                progress.GetValueOrDefault(row.Id));
         }).ToList();
     }
 

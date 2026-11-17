@@ -74,6 +74,38 @@ public sealed class TodoRow
     public long? FtsRowId { get; set; }
 }
 
+/// <summary>
+/// 任务的阶段性进展。软删后 7 天内仍保留行与附件，由回收站清理统一物理删除。
+/// 挂在这条进展上的附件使用 <c>owner_type=progress</c>。
+/// </summary>
+public sealed class TodoProgressRow
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string TodoId { get; set; } = string.Empty;
+
+    /// <summary>阶段名；未填时存「进展」。</summary>
+    public string Title { get; set; } = string.Empty;
+
+    public string? Notes { get; set; }
+
+    /// <summary>0–100 的整体进度；null 表示这条只记录信息。</summary>
+    public int? Percent { get; set; }
+
+    /// <summary>产物列表的 JSON 数组文本；空列表存 null。</summary>
+    public string? ArtifactsJson { get; set; }
+
+    public DateTime OccurredAt { get; set; }
+
+    public int Revision { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+}
+
 /// <summary>项目：任务的归属根。删除走软删，任务本身不级联删除。</summary>
 public sealed class ProjectRow
 {

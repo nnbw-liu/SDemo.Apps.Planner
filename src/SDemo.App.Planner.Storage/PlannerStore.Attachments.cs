@@ -36,6 +36,22 @@ public sealed partial class PlannerStore
         return query.OrderBy(a => a.CreatedAt).ToList();
     }
 
+    /// <summary>按 owner id 批量数附件，给进展卡片显示「附件 N」时避免逐条查库。</summary>
+    public IReadOnlyDictionary<string, int> CountAttachments(string ownerType, IReadOnlyList<string> ownerIds)
+    {
+        if (ownerIds.Count == 0)
+        {
+            return new Dictionary<string, int>();
+        }
+
+        using var db = Open();
+        return db.Attachments.AsNoTracking()
+            .Where(a => a.OwnerType == ownerType && ownerIds.Contains(a.OwnerId) && a.DeletedAt == null)
+            .GroupBy(a => a.OwnerId)
+            .Select(g => new { OwnerId = g.Key, Count = g.Count() })
+            .ToDictionary(x => x.OwnerId, x => x.Count, StringComparer.Ordinal);
+    }
+
     public void InsertAttachment(AttachmentRow row, string actor)
     {
         using var db = Open();

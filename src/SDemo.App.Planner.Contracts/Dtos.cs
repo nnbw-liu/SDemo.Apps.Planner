@@ -26,6 +26,15 @@ public sealed record TodoDto
     /// <summary>完成后的产物：文件路径、链接、提交号等，一行一个。</summary>
     public IReadOnlyList<string> Artifacts { get; init; } = [];
 
+    /// <summary>阶段性进展的条数；0 表示还没有记录。</summary>
+    public int ProgressCount { get; init; }
+
+    /// <summary>整体进度 0–100；取最近一条带百分比的进展，没有则为空。</summary>
+    public int? ProgressPercent { get; init; }
+
+    /// <summary>最近一条进展的阶段名，用于列表上提示当前走到哪一步。</summary>
+    public string? LatestProgressTitle { get; init; }
+
     public string? ListId { get; init; }
 
     public string? ListName { get; init; }

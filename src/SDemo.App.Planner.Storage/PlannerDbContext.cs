@@ -51,6 +51,8 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
 
     public DbSet<AttachmentRow> Attachments => Set<AttachmentRow>();
 
+    public DbSet<TodoProgressRow> TodoProgress => Set<TodoProgressRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TodoRow>(entity =>
@@ -158,6 +160,25 @@ public sealed class PlannerDbContext(DbContextOptions<PlannerDbContext> options)
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcConverter);
             entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
             entity.HasIndex(x => new { x.OwnerType, x.OwnerId });
+            entity.HasIndex(x => x.DeletedAt);
+        });
+
+        modelBuilder.Entity<TodoProgressRow>(entity =>
+        {
+            entity.ToTable("todo_progress");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id").HasMaxLength(64);
+            entity.Property(x => x.TodoId).HasColumnName("todo_id").HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Title).HasColumnName("title").HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Notes).HasColumnName("notes").HasMaxLength(2000);
+            entity.Property(x => x.Percent).HasColumnName("percent");
+            entity.Property(x => x.ArtifactsJson).HasColumnName("artifacts_json").HasMaxLength(4000);
+            entity.Property(x => x.OccurredAt).HasColumnName("occurred_at").HasConversion(UtcRequiredConverter);
+            entity.Property(x => x.Revision).HasColumnName("revision");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(UtcRequiredConverter);
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(UtcRequiredConverter);
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at").HasConversion(UtcConverter);
+            entity.HasIndex(x => new { x.TodoId, x.OccurredAt });
             entity.HasIndex(x => x.DeletedAt);
         });
 

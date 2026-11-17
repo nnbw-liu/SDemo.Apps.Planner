@@ -3195,3 +3195,72 @@ a.ado-chip:hover {
 }
 .settings-attach-stats strong { color: var(--text); font-size: 14px; font-weight: 600; }
 .settings-attach-stats span { color: var(--muted); font-size: 10px; }
+
+/* 任务阶段进展（详情时间线 + 列表进度胶囊） */
+.progress-count { color: var(--faint); font-size: 10px; }
+.progress-error { margin: 6px 0 0; color: var(--red); font-size: 10.5px; }
+.progress-meter {
+    position: relative;
+    height: 4px;
+    margin: 10px 0 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(var(--wash-rgb), 0.08);
+}
+.progress-meter span { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--accent); }
+.progress-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.progress-card {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(var(--wash-rgb), 0.02);
+}
+.progress-card-head { display: flex; align-items: center; gap: 8px; }
+.progress-dot { display: inline-flex; flex: none; color: var(--accent); }
+.progress-card-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.progress-card-title strong { color: var(--text); font-size: 12px; font-weight: 600; }
+.progress-card-title time { color: var(--faint); font-size: 10px; font-variant-numeric: tabular-nums; }
+.progress-percent {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+}
+.progress-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.progress-actions .icon-btn { color: var(--muted); }
+.progress-notes { margin: 8px 0 0; white-space: pre-wrap; color: var(--text-soft); font-size: 11.5px; line-height: 1.65; }
+.progress-artifacts { margin-top: 8px; }
+.progress-card-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.progress-card-foot .btn { color: var(--muted); }
+.progress-foot-hint { color: var(--faint); font-size: 10px; }
+.progress-card > .attach-panel { margin-top: 8px; padding-top: 8px; }
+.progress-card > .attach-panel .attach-note { display: none; }
+.progress-editor {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 10px;
+    background: rgba(var(--wash-rgb), 0.025);
+}
+.progress-editor-head { display: flex; align-items: center; justify-content: space-between; color: var(--text); font-size: 11.5px; }
+.progress-editor-head .icon-btn { color: var(--muted); }
+.progress-editor-grid { display: grid; grid-template-columns: 1.6fr 1fr 0.9fr; gap: 8px; margin-top: 10px; }
+.progress-editor .field { margin-top: 8px; }
+.progress-editor .field > span { color: var(--muted); font-size: 10.5px; }
+.progress-editor-hint { margin: 8px 0 0; color: var(--faint); font-size: 10px; line-height: 1.6; }
+.progress-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.progress-mini { gap: 5px; }
+.progress-mini-bar {
+    position: relative;
+    width: 30px;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(var(--wash-rgb), 0.1);
+}
+.progress-mini-bar span { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--accent); }
+.task-row.is-done .progress-mini-bar span,
+.task-row.is-closed .progress-mini-bar span { background: var(--muted); }
