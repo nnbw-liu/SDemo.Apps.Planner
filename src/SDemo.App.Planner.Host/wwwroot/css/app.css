@@ -2787,15 +2787,67 @@ p { margin: 0; }
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px dashed var(--line);
+    margin-top: 8px;
 }
 
 .ado-task-hint {
     margin-left: auto;
     color: var(--faint);
     font-size: 10px;
+}
+
+.ado-task-rev {
+    margin-left: auto;
+    color: var(--faint);
+    font-size: 10px;
+}
+
+.ado-task-note {
+    margin: 6px 0 0;
+    color: var(--faint);
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+.ado-link-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.ado-link-input {
+    width: 180px;
+    max-width: 100%;
+}
+
+.ado-upload-toggle {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.ado-upload-toggle input {
+    margin-top: 3px;
+}
+
+.ado-upload-toggle span {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: var(--text);
+    font-size: 12px;
+}
+
+.ado-upload-toggle small {
+    color: var(--faint);
+    font-size: 10px;
+    line-height: 1.5;
 }
 
 .settings-warnings {

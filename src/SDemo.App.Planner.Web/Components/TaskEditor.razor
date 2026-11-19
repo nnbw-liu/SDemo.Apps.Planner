@@ -1,4 +1,5 @@
 @inherits PlannerPageBase
+@inject AdoImportService Ado
 
 <Modal Title="@(Ui.EditingTodo is null ? "新建任务" : "编辑任务")"
        Eyebrow="@(Ui.EditingTodo is null ? "捕捉下一件事" : "调整任务")"
@@ -124,6 +125,17 @@
             <textarea class="input textarea task-notes" rows="4" placeholder="补充背景、验收标准或链接…" @bind="_notes"></textarea>
         </label>
 
+        @if (Ui.EditingTodo is null && _projectAdoBound)
+        {
+            <label class="field field-full ado-upload-toggle">
+                <input type="checkbox" @bind="_uploadToAdo" />
+                <span>
+                    同时上传到 Azure DevOps
+                    <small>会在当前项目绑定的云端项目里新建一条工作项；上传失败不影响本地任务。</small>
+                </span>
+            </label>
+        }
+
         @if (_error is not null)
         {
             <div class="form-error field-full">@_error</div>
@@ -163,6 +175,8 @@
     private string _artifactsText = string.Empty;
     private bool _saving;
     private bool _confirmDelete;
+    private bool _projectAdoBound;
+    private bool _uploadToAdo;
     private string? _error;
 
     private IReadOnlyList<ProjectDto> _projects = [];
@@ -254,6 +268,8 @@
         {
             _projectId = _iterations.FirstOrDefault(i => i.Id == _iterationId)?.ProjectId ?? string.Empty;
         }
+
+        RefreshAdoBinding();
     }
 
     private void OnProjectChanged(string value)
@@ -262,6 +278,19 @@
         if (!Iterations.Any(i => i.Id == _iterationId))
         {
             _iterationId = string.Empty;
+        }
+
+        RefreshAdoBinding();
+    }
+
+    /// <summary>只有当前项目绑定了云端项目、且是新建任务时，才提供「同时上传」选项。</summary>
+    private void RefreshAdoBinding()
+    {
+        _projectAdoBound = !string.IsNullOrWhiteSpace(_projectId)
+            && Ado.GetBinding(_projectId).Bound;
+        if (!_projectAdoBound || Ui.EditingTodo is not null)
+        {
+            _uploadToAdo = false;
         }
     }
 
@@ -285,7 +314,7 @@
             var todo = Ui.EditingTodo;
             if (todo is null)
             {
-                Service.CreateTodos(
+                var batch = Service.CreateTodos(
                     [
                         new TodoCreateInput
                         {
@@ -299,7 +328,18 @@
                         },
                     ],
                     WriteContext.Manual());
-                Ui.Toast("任务已加入");
+
+                var created = batch.Items.FirstOrDefault();
+                var message = "任务已加入";
+                if (_uploadToAdo && created is not null)
+                {
+                    var upload = await Ado.UploadTodoAsync(created.Id);
+                    message = upload.Ok
+                        ? $"任务已加入，并上传到 ADO #{upload.ExternalId}"
+                        : $"任务已加入，但上传 ADO 失败：{upload.Message}";
+                }
+
+                Ui.Toast(message);
             }
             else
             {

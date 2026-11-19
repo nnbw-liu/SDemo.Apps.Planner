@@ -289,6 +289,276 @@ public sealed class AdoImportService(PlannerService planner, AdoClient client)
         }
     }
 
+    /// <summary>
+    /// 把本地任务上传成一条新的 ADO 工作项（新建任务时勾选「同时上传」走这里）。
+    /// 只对还没关联云端编号的任务生效，避免重复创建。
+    /// </summary>
+    public async Task<AdoWorkItemSyncResultDto> UploadTodoAsync(
+        string todoId,
+        string? workItemType = null,
+        CancellationToken ct = default)
+    {
+        if (!TryResolveTodoProject(todoId, out var todo, out var binding, out var collectionUrl, out var pat, out var failure))
+        {
+            return failure!;
+        }
+
+        if (todo.ExternalSource == AdoMapper.SourceName && !string.IsNullOrWhiteSpace(todo.ExternalId))
+        {
+            return new AdoWorkItemSyncResultDto
+            {
+                Ok = false,
+                Message = $"这条任务已经关联了 ADO #{todo.ExternalId}，不会再新建一条；要更新云端内容请用「同步到云端」。",
+                TodoId = todoId,
+            };
+        }
+
+        try
+        {
+            IReadOnlyList<string> types = string.IsNullOrWhiteSpace(workItemType)
+                ? AdoMapper.ToAdoWorkItemTypes(PlannerMapper.ToStorage(todo.Kind))
+                : [workItemType.Trim()];
+
+            var result = await client.CreateWorkItemAsync(
+                collectionUrl,
+                pat,
+                binding.AdoProject,
+                types,
+                todo.Title,
+                todo.Notes,
+                PlannerMapper.ToStorage(todo.Status),
+                todo.Priority,
+                ct);
+
+            if (result.Ok)
+            {
+                planner.MarkAdoPushed(todo.Id, result.ExternalId!, result.ExternalRev, result.ExternalUrl);
+            }
+
+            return result with { TodoId = todoId };
+        }
+        catch (PlannerException ex)
+        {
+            return new AdoWorkItemSyncResultDto { Ok = false, Message = ex.Message, TodoId = todoId };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return new AdoWorkItemSyncResultDto { Ok = false, Message = $"连不上 Azure DevOps：{ex.Message}", TodoId = todoId };
+        }
+    }
+
+    /// <summary>
+    /// 给本地任务指派一条已有的云端工作项（只记 external_*，不改本地标题 / 说明 / 状态）。
+    /// 校验编号存在、云端项目与本地绑定一致、且没有别的本地任务占用同一个编号。
+    /// </summary>
+    public async Task<AdoWorkItemSyncResultDto> LinkTodoAsync(
+        string todoId,
+        string externalId,
+        CancellationToken ct = default)
+    {
+        if (!TryResolveTodoProject(todoId, out var todo, out var binding, out var collectionUrl, out var pat, out var failure))
+        {
+            return failure!;
+        }
+
+        if (todo.ExternalSource == AdoMapper.SourceName && !string.IsNullOrWhiteSpace(todo.ExternalId))
+        {
+            return new AdoWorkItemSyncResultDto
+            {
+                Ok = false,
+                Message = $"这条任务已经关联了 ADO #{todo.ExternalId}，没有再改关联（需要换编号请先取消关联）。",
+                TodoId = todoId,
+            };
+        }
+
+        var text = (externalId ?? string.Empty).Trim().TrimStart('#').Trim();
+        if (!long.TryParse(text, out var id) || id <= 0)
+        {
+            return new AdoWorkItemSyncResultDto
+            {
+                Ok = false,
+                Message = "请输入正确的 ADO 工作项编号，例如 12345。",
+                TodoId = todoId,
+            };
+        }
+
+        var idText = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var occupied = planner.GetTodoByExternal(AdoMapper.SourceName, idText);
+        if (occupied is not null && occupied.Id != todo.Id)
+        {
+            return new AdoWorkItemSyncResultDto
+            {
+                Ok = false,
+                Message = $"ADO #{id} 已经关联到本地任务「{occupied.Title}」，不能重复关联。",
+                TodoId = todoId,
+            };
+        }
+
+        try
+        {
+            var item = await client.FetchWorkItemAsync(collectionUrl, pat, id, ct);
+            if (item is null)
+            {
+                return new AdoWorkItemSyncResultDto
+                {
+                    Ok = false,
+                    Message = $"ADO #{id} 不存在或当前 PAT 看不到它。",
+                    TodoId = todoId,
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(item.ProjectName)
+                && !string.Equals(item.ProjectName.Trim(), binding.AdoProject.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return new AdoWorkItemSyncResultDto
+                {
+                    Ok = false,
+                    Message = $"ADO #{id} 属于云端项目「{item.ProjectName}」，和本地项目绑定的「{binding.AdoProject}」不一致。",
+                    TodoId = todoId,
+                };
+            }
+
+            planner.MarkAdoPushed(todo.Id, item.ExternalId, item.Rev, item.Url);
+            return new AdoWorkItemSyncResultDto
+            {
+                Ok = true,
+                Message = $"已关联 ADO #{id}「{item.Title}」（{item.Type} · {item.State}）。之后可以只把状态同步过去。",
+                TodoId = todoId,
+                ExternalId = item.ExternalId,
+                ExternalRev = item.Rev,
+                ExternalUrl = item.Url,
+                ChangedFields = [],
+            };
+        }
+        catch (PlannerException ex)
+        {
+            return new AdoWorkItemSyncResultDto { Ok = false, Message = ex.Message, TodoId = todoId };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return new AdoWorkItemSyncResultDto { Ok = false, Message = $"连不上 Azure DevOps：{ex.Message}", TodoId = todoId };
+        }
+    }
+
+    /// <summary>
+    /// 只把本地状态推回 ADO：先读最新 rev，再只 PATCH System.State，
+    /// 不碰标题 / 说明 / 优先级，所以云端被别人改过也能同步状态。
+    /// </summary>
+    public async Task<AdoWorkItemSyncResultDto> PushStatusAsync(string todoId, CancellationToken ct = default)
+    {
+        if (!TryResolveTodo(todoId, out var todo, out var id, out var failure))
+        {
+            return failure!;
+        }
+
+        var collectionUrl = planner.GetAdoConnection().CollectionUrl;
+        var pat = ResolvePat(null);
+
+        try
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var item = await client.FetchWorkItemAsync(collectionUrl, pat, id, ct);
+                if (item is null)
+                {
+                    return new AdoWorkItemSyncResultDto
+                    {
+                        Ok = false,
+                        Message = $"ADO #{id} 已删除或不可见，本地这条保持不变。",
+                        TodoId = todoId,
+                    };
+                }
+
+                var result = await client.UpdateWorkItemStatusAsync(
+                    collectionUrl, pat, id, PlannerMapper.ToStorage(todo.Status), item.Rev, ct);
+
+                if (result.Ok)
+                {
+                    planner.MarkAdoPushed(todo.Id, item.ExternalId, result.ExternalRev, result.ExternalUrl ?? item.Url);
+                    return result with { TodoId = todoId };
+                }
+
+                // 只有 rev 撞车才重读一次；状态名不被流程接受时直接返回，重试也没用。
+                if (!result.Message.Contains("刚刚又被改过", StringComparison.Ordinal))
+                {
+                    return result with { TodoId = todoId };
+                }
+            }
+
+            return new AdoWorkItemSyncResultDto
+            {
+                Ok = false,
+                Message = $"ADO #{id} 一直在被改，没敢再推状态；过几秒再点一次「仅同步状态」。",
+                TodoId = todoId,
+            };
+        }
+        catch (PlannerException ex)
+        {
+            return new AdoWorkItemSyncResultDto { Ok = false, Message = ex.Message, TodoId = todoId };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return new AdoWorkItemSyncResultDto { Ok = false, Message = $"连不上 Azure DevOps：{ex.Message}", TodoId = todoId };
+        }
+    }
+
+    /// <summary>
+    /// 上传 / 关联前的前置检查：任务要存在且归到项目、项目要绑定、连接要启用、PAT 要有。
+    /// 和 <see cref="TryResolveTodo"/> 的区别是不要求任务已经来自 ADO。
+    /// </summary>
+    private bool TryResolveTodoProject(
+        string todoId,
+        out TodoDto todo,
+        out AdoBindingDto binding,
+        out string collectionUrl,
+        out string pat,
+        out AdoWorkItemSyncResultDto? failure)
+    {
+        todo = null!;
+        binding = null!;
+        collectionUrl = string.Empty;
+        pat = string.Empty;
+        failure = null;
+
+        var found = planner.GetTodo(todoId);
+        if (found is null)
+        {
+            failure = new AdoWorkItemSyncResultDto { Ok = false, Message = "任务不存在", TodoId = todoId };
+            return false;
+        }
+
+        todo = found;
+        if (string.IsNullOrWhiteSpace(todo.ProjectId))
+        {
+            failure = new AdoWorkItemSyncResultDto { Ok = false, Message = "先把任务归到一个项目，再由项目绑定云端项目。", TodoId = todoId };
+            return false;
+        }
+
+        binding = planner.GetAdoBinding(todo.ProjectId);
+        if (!binding.Bound || string.IsNullOrWhiteSpace(binding.AdoProject))
+        {
+            failure = new AdoWorkItemSyncResultDto { Ok = false, Message = "所在项目还没有绑定云端项目。", TodoId = todoId };
+            return false;
+        }
+
+        var connection = planner.GetAdoConnection();
+        if (!connection.Enabled)
+        {
+            failure = new AdoWorkItemSyncResultDto { Ok = false, Message = "Azure DevOps 接入已关闭，先到设置里打开。", TodoId = todoId };
+            return false;
+        }
+
+        collectionUrl = ResolveCollection(connection.CollectionUrl);
+        pat = ResolvePat(null);
+        if (string.IsNullOrWhiteSpace(collectionUrl) || string.IsNullOrWhiteSpace(pat))
+        {
+            failure = new AdoWorkItemSyncResultDto { Ok = false, Message = "ADO 连接还不完整，先到设置里填集合地址和 PAT。", TodoId = todoId };
+            return false;
+        }
+
+        return true;
+    }
+
     /// <summary>推送 / 拉取前的前置检查：任务要来自 ADO、项目要绑定、连接要启用、PAT 要有。</summary>
     private bool TryResolveTodo(string todoId, out TodoDto todo, out long id, out AdoWorkItemSyncResultDto? failure)
     {

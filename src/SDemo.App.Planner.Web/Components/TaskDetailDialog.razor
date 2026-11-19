@@ -24,19 +24,58 @@
                 }
             </div>
 
-            @if (todo.ExternalSource == "azure-devops" && todo.ExternalId is not null)
+            @if (_adoBound || IsAdoLinked(todo))
             {
-                <div class="ado-task-actions">
-                    <button type="button" class="btn btn-ghost btn-sm" @onclick="PushToAdo" disabled="@_adoBusy">
-                        <Icon Name="upload" Size="13" /> @(_adoBusy ? "同步中…" : "同步到云端")
-                    </button>
-                    <button type="button" class="btn btn-ghost btn-sm" @onclick="PullFromAdo" disabled="@_adoBusy">
-                        <Icon Name="download" Size="13" /> 从云端同步
-                    </button>
-                    <span class="ado-task-hint">
-                        推送标题 / 说明 / 状态 / 优先级 · rev @(todo.ExternalRev?.ToString() ?? "—")
-                    </span>
-                </div>
+                <section class="task-detail-section ado-task-section">
+                    <div class="task-detail-section-head">
+                        <span class="eyebrow">云端工作项</span>
+                        @if (IsAdoLinked(todo))
+                        {
+                            <span class="ado-task-rev">rev @(todo.ExternalRev?.ToString() ?? "—")</span>
+                        }
+                    </div>
+
+                    @if (IsAdoLinked(todo))
+                    {
+                        <div class="ado-task-actions">
+                            <a class="ado-chip" href="@(string.IsNullOrWhiteSpace(todo.ExternalUrl) ? "#" : todo.ExternalUrl)"
+                               target="_blank" rel="noreferrer" title="在 Azure DevOps 中打开">
+                                <Icon Name="link" Size="12" /> ADO #@todo.ExternalId
+                            </a>
+                            <button type="button" class="btn btn-ghost btn-sm" @onclick="PushToAdo" disabled="@_adoBusy">
+                                <Icon Name="upload" Size="13" /> @(_adoBusy ? "同步中…" : "同步到云端")
+                            </button>
+                            <button type="button" class="btn btn-ghost btn-sm" @onclick="PushStatusToAdo"
+                                    disabled="@_adoBusy" title="只把状态推回云端，不覆盖云端的标题、说明和优先级">
+                                <Icon Name="upload" Size="13" /> 仅同步状态
+                            </button>
+                            <button type="button" class="btn btn-ghost btn-sm" @onclick="PullFromAdo" disabled="@_adoBusy">
+                                <Icon Name="download" Size="13" /> 从云端同步
+                            </button>
+                        </div>
+                        <p class="ado-task-note">
+                            云端被人改过时，「同步到云端」会提示冲突；只把本地状态推过去用「仅同步状态」。
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="ado-link-form">
+                            <input class="input ado-link-input" placeholder="ADO 编号，如 12345"
+                                   @bind="_adoIdText" @bind:event="oninput" />
+                            <button type="button" class="btn btn-ghost btn-sm" @onclick="LinkToAdo" disabled="@_adoBusy">
+                                <Icon Name="link" Size="13" /> 关联已有
+                            </button>
+                            <button type="button" class="btn btn-ghost btn-sm" @onclick="UploadToAdo" disabled="@_adoBusy">
+                                <Icon Name="upload" Size="13" /> 上传为新工作项
+                            </button>
+                        </div>
+                        <p class="ado-task-note">
+                            关联只记云端编号，不改本地内容；上传会在
+                            @(string.IsNullOrWhiteSpace(_adoProject) ? "绑定的云端项目" : $"「{_adoProject}」")
+                            里按任务类型新建一条工作项。
+                        </p>
+                    }
+                </section>
             }
 
             <dl class="detail-grid">
@@ -285,6 +324,9 @@
     private string? _historyError;
     private string? _relationError;
     private bool _adoBusy;
+    private bool _adoBound;
+    private string? _adoProject;
+    private string _adoIdText = string.Empty;
     private bool _confirmDelete;
 
     private static readonly IReadOnlyList<SelectOption<TodoStatus>> StatusOptions =
@@ -305,7 +347,18 @@
             _history = [];
             _linkedBugs = [];
             _parentTodo = null;
+            _adoBound = false;
+            _adoProject = null;
             return;
+        }
+
+        _adoBound = false;
+        _adoProject = null;
+        if (!string.IsNullOrWhiteSpace(todo.ProjectId))
+        {
+            var binding = Ado.GetBinding(todo.ProjectId);
+            _adoBound = binding.Bound;
+            _adoProject = binding.AdoProject;
         }
 
         try
@@ -395,10 +448,42 @@
         {
             var result = await Ado.PushTodoAsync(todo.Id);
             Ui.Toast(result.Message);
+            if (result.Ok)
+            {
+                RefreshAfterAdo(todo.Id);
+            }
         }
         catch (PlannerException ex)
         {
             Ui.Toast($"推送失败：{ex.Message}");
+        }
+        finally
+        {
+            _adoBusy = false;
+        }
+    }
+
+    /// <summary>只推状态：云端改过标题/说明也不冲突。</summary>
+    private async Task PushStatusToAdo()
+    {
+        if (Ui.ViewingTodo is not { } todo || _adoBusy)
+        {
+            return;
+        }
+
+        _adoBusy = true;
+        try
+        {
+            var result = await Ado.PushStatusAsync(todo.Id);
+            Ui.Toast(result.Message);
+            if (result.Ok)
+            {
+                RefreshAfterAdo(todo.Id);
+            }
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast($"同步状态失败：{ex.Message}");
         }
         finally
         {
@@ -420,13 +505,7 @@
             Ui.Toast(result.Message);
             if (result.Ok)
             {
-                var refreshed = Service.GetTodo(todo.Id);
-                if (refreshed is not null)
-                {
-                    Ui.OpenTaskDetail(refreshed);
-                }
-
-                Reload();
+                RefreshAfterAdo(todo.Id);
             }
         }
         catch (PlannerException ex)
@@ -438,6 +517,76 @@
             _adoBusy = false;
         }
     }
+
+    private async Task LinkToAdo()
+    {
+        if (Ui.ViewingTodo is not { } todo || _adoBusy)
+        {
+            return;
+        }
+
+        _adoBusy = true;
+        try
+        {
+            var result = await Ado.LinkTodoAsync(todo.Id, _adoIdText);
+            Ui.Toast(result.Message);
+            if (result.Ok)
+            {
+                _adoIdText = string.Empty;
+                RefreshAfterAdo(todo.Id);
+            }
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast($"关联失败：{ex.Message}");
+        }
+        finally
+        {
+            _adoBusy = false;
+        }
+    }
+
+    private async Task UploadToAdo()
+    {
+        if (Ui.ViewingTodo is not { } todo || _adoBusy)
+        {
+            return;
+        }
+
+        _adoBusy = true;
+        try
+        {
+            var result = await Ado.UploadTodoAsync(todo.Id);
+            Ui.Toast(result.Message);
+            if (result.Ok)
+            {
+                RefreshAfterAdo(todo.Id);
+            }
+        }
+        catch (PlannerException ex)
+        {
+            Ui.Toast($"上传失败：{ex.Message}");
+        }
+        finally
+        {
+            _adoBusy = false;
+        }
+    }
+
+    /// <summary>云端操作只改 external_*，重取一次任务把 badge / rev 刷新出来。</summary>
+    private void RefreshAfterAdo(string todoId)
+    {
+        var refreshed = Service.GetTodo(todoId);
+        if (refreshed is not null)
+        {
+            Ui.OpenTaskDetail(refreshed);
+        }
+
+        Reload();
+    }
+
+    private static bool IsAdoLinked(TodoDto todo) =>
+        todo.ExternalSource == AdoMapper.SourceName && !string.IsNullOrWhiteSpace(todo.ExternalId);
 
     private async Task CopyNotes(string text)
     {

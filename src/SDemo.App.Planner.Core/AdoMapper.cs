@@ -209,6 +209,17 @@ public static partial class AdoMapper
         _ => ["新建", "New"],
     };
 
+    /// <summary>
+    /// 事序 Kind → ADO 工作项类型候选名（上传本地任务用）。
+    /// 本地部署的流程模板可能是中文（用户情景/缺陷/任务），所以按顺序试，
+    /// 第一个被 ADO 接受的类型就用来创建。
+    /// </summary>
+    public static IReadOnlyList<string> ToAdoWorkItemTypes(string? storageKind) => storageKind switch
+    {
+        "bug" => ["Bug", "缺陷"],
+        _ => ["任务", "Task"],
+    };
+
     /// <summary>事序优先级（0 低 … 4 高）→ ADO 优先级（1 高 … 4 低），与 <see cref="ToPriority"/> 互逆。</summary>
     public static int ToAdoPriority(int priority) => priority switch
     {
