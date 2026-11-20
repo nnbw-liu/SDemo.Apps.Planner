@@ -742,6 +742,13 @@ public sealed partial class PlannerService
         return GetTodo(updated.Id) ?? throw PlannerException.NotFound("同步后没读到任务");
     }
 
+    /// <summary>按外部标识查本地任务（关联云端工作项前查重）。</summary>
+    public TodoDto? GetTodoByExternal(string source, string externalId)
+    {
+        var row = _store.GetTodoByExternal(source, externalId);
+        return row is null ? null : MapTodos([row]).First();
+    }
+
     /// <summary>推送成功后只更新外部字段（rev / 链接），推送方向以事序为准，不改本地内容。</summary>
     internal void MarkAdoPushed(string todoId, string externalId, int? rev, string? url)
     {

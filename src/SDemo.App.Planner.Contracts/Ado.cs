@@ -200,6 +200,9 @@ public sealed class AdoWorkItemDto
 
     public required string State { get; init; }
 
+    /// <summary>所属云端项目名；单条读取时用于校验项目绑定是否对得上。</summary>
+    public string? ProjectName { get; init; }
+
     public int? AdoPriority { get; init; }
 
     public string? IterationPath { get; init; }

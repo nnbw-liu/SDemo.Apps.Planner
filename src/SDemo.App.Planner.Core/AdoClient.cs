@@ -530,6 +530,238 @@ public sealed class AdoClient(HttpClient http)
         };
     }
 
+    /// <summary>
+    /// 只把状态推回 ADO。先由调用方读一次工作项拿到最新 rev，这里只带 <c>test /rev</c> 与
+    /// <c>System.State</c>，不碰标题 / 说明 / 优先级——云端被别人改过也能安全同步状态。
+    /// </summary>
+    public async Task<AdoWorkItemSyncResultDto> UpdateWorkItemStatusAsync(
+        string collectionUrl,
+        string pat,
+        long id,
+        string plannStatus,
+        int expectedRev,
+        CancellationToken ct = default)
+    {
+        var root = NormalizeCollection(collectionUrl);
+        if (root.Length == 0)
+        {
+            throw PlannerException.Validation("集合地址不能为空");
+        }
+
+        var url = $"{root}/_apis/wit/workitems/{id.ToString(CultureInfo.InvariantCulture)}?api-version={ApiVersion}";
+        var states = AdoMapper.ToAdoStates(plannStatus);
+        var lastError = "未知错误";
+
+        foreach (var state in states)
+        {
+            ct.ThrowIfCancellationRequested();
+            var ops = new List<Dictionary<string, object?>>
+            {
+                PatchOp("test", "/rev", expectedRev),
+                PatchOp("replace", "/fields/System.State", state),
+            };
+
+            var (status, text) = await SendRawAsync(
+                HttpMethod.Patch, url, pat, ops, "application/json-patch+json", ct);
+
+            if (status is >= 200 and < 300)
+            {
+                var (rev, projectName) = ReadWriteResponse(text);
+                var itemUrl = string.IsNullOrWhiteSpace(projectName)
+                    ? $"{root}/_workitems/edit/{id.ToString(CultureInfo.InvariantCulture)}"
+                    : AdoMapper.WorkItemUrl(root, projectName, id);
+
+                return new AdoWorkItemSyncResultDto
+                {
+                    Ok = true,
+                    Message = $"已把状态「{state}」同步到 ADO #{id}（rev {rev}）。",
+                    ExternalId = id.ToString(CultureInfo.InvariantCulture),
+                    ExternalRev = rev,
+                    ExternalUrl = itemUrl,
+                    ChangedFields = ["状态"],
+                };
+            }
+
+            lastError = Snippet(text);
+            if (status == 409)
+            {
+                return new AdoWorkItemSyncResultDto
+                {
+                    Ok = false,
+                    Message = $"ADO 里的这条工作项刚刚又被改过（本地读到的 rev {expectedRev} 不是最新），再点一次「仅同步状态」即可。",
+                    ExternalId = id.ToString(CultureInfo.InvariantCulture),
+                };
+            }
+
+            if (status != 400)
+            {
+                throw new PlannerException(ErrorCodes.AdoUnavailable, $"Azure DevOps 返回 HTTP {status}：{lastError}", HintFor(status));
+            }
+        }
+
+        return new AdoWorkItemSyncResultDto
+        {
+            Ok = false,
+            Message = $"ADO 拒绝了这次状态同步：{lastError}",
+            ExternalId = id.ToString(CultureInfo.InvariantCulture),
+        };
+    }
+
+    /// <summary>
+    /// 用本地任务新建一条 ADO 工作项（「上传到云端」）。工作项类型与状态名都按候选列表试，
+    /// 兼容中文流程模板；成功返回新工作项的 id / rev / 链接。
+    /// </summary>
+    public async Task<AdoWorkItemSyncResultDto> CreateWorkItemAsync(
+        string collectionUrl,
+        string pat,
+        string project,
+        IReadOnlyList<string> workItemTypes,
+        string title,
+        string? notes,
+        string plannStatus,
+        int priority,
+        CancellationToken ct = default)
+    {
+        var root = NormalizeCollection(collectionUrl);
+        if (root.Length == 0)
+        {
+            throw PlannerException.Validation("集合地址不能为空");
+        }
+
+        var projectName = (project ?? string.Empty).Trim();
+        if (projectName.Length == 0)
+        {
+            throw PlannerException.Validation("先选择要上传到的云端项目");
+        }
+
+        IReadOnlyList<string> types = workItemTypes.Count == 0 ? ["Task"] : workItemTypes;
+        var states = AdoMapper.ToAdoStates(plannStatus);
+        var lastError = "未知错误";
+
+        foreach (var type in types)
+        {
+            ct.ThrowIfCancellationRequested();
+            var url = $"{AdoMapper.ProjectUrl(root, projectName)}/_apis/wit/workitems/${Uri.EscapeDataString(type)}"
+                + $"?api-version={ApiVersion}";
+
+            // 先带状态创建；状态名不被该流程接受时，退化为不带 System.State（用 ADO 默认状态）。
+            foreach (var state in states.Cast<string?>().Append(null))
+            {
+                ct.ThrowIfCancellationRequested();
+                var ops = new List<Dictionary<string, object?>>
+                {
+                    PatchOp("add", "/fields/System.Title", title),
+                    PatchOp("add", "/fields/System.Description", AdoMapper.ToAdoHtml(notes)),
+                    PatchOp("add", "/fields/Microsoft.VSTS.Common.Priority", AdoMapper.ToAdoPriority(priority)),
+                };
+                if (state is not null)
+                {
+                    ops.Add(PatchOp("add", "/fields/System.State", state));
+                }
+
+                var (status, text) = await SendRawAsync(
+                    HttpMethod.Post, url, pat, ops, "application/json-patch+json", ct);
+
+                if (status is >= 200 and < 300)
+                {
+                    var (newId, rev, responseProject) = ReadCreatedWorkItem(text);
+                    if (newId <= 0)
+                    {
+                        return new AdoWorkItemSyncResultDto
+                        {
+                            Ok = false,
+                            Message = "ADO 已接受创建请求，但返回里没有工作项编号，请到云端确认。",
+                        };
+                    }
+
+                    var typeLabel = type;
+                    var stateLabel = state is null ? "默认状态" : $"状态「{state}」";
+                    return new AdoWorkItemSyncResultDto
+                    {
+                        Ok = true,
+                        Message = $"已上传到 ADO #{newId}（{typeLabel} · {stateLabel}）。",
+                        ExternalId = newId.ToString(CultureInfo.InvariantCulture),
+                        ExternalRev = rev,
+                        ExternalUrl = AdoMapper.WorkItemUrl(root, responseProject ?? projectName, newId),
+                        ChangedFields = state is null
+                            ? ["标题", "说明", "优先级"]
+                            : ["标题", "说明", "优先级", "状态"],
+                    };
+                }
+
+                lastError = Snippet(text);
+
+                // 400：状态/字段不合法，换状态或退化为不带状态；404：类型名不对，换下一个类型。
+                if (status is not (400 or 404))
+                {
+                    throw new PlannerException(ErrorCodes.AdoUnavailable, $"Azure DevOps 返回 HTTP {status}：{lastError}", HintFor(status));
+                }
+            }
+        }
+
+        return new AdoWorkItemSyncResultDto
+        {
+            Ok = false,
+            Message = $"ADO 拒绝了这次上传：{lastError}（尝试类型：{string.Join(" / ", types)}）",
+        };
+    }
+
+    private static (int Rev, string? ProjectName) ReadWriteResponse(string text)
+    {
+        var rev = 0;
+        string? projectName = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            if (doc.RootElement.TryGetProperty("rev", out var revElement) && revElement.TryGetInt32(out var parsed))
+            {
+                rev = parsed;
+            }
+
+            if (doc.RootElement.TryGetProperty("fields", out var fields))
+            {
+                projectName = FieldString(fields, "System.TeamProject");
+            }
+        }
+        catch (JsonException)
+        {
+            // 返回体不是 JSON 也不影响已经成功的写入。
+        }
+
+        return (rev, projectName);
+    }
+
+    private static (long Id, int Rev, string? ProjectName) ReadCreatedWorkItem(string text)
+    {
+        var id = 0L;
+        var rev = 0;
+        string? projectName = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            if (doc.RootElement.TryGetProperty("id", out var idElement) && idElement.TryGetInt64(out var parsedId))
+            {
+                id = parsedId;
+            }
+
+            if (doc.RootElement.TryGetProperty("rev", out var revElement) && revElement.TryGetInt32(out var parsedRev))
+            {
+                rev = parsedRev;
+            }
+
+            if (doc.RootElement.TryGetProperty("fields", out var fields))
+            {
+                projectName = FieldString(fields, "System.TeamProject");
+            }
+        }
+        catch (JsonException)
+        {
+            // 没解析出来按失败处理，让 UI 提示去云端确认。
+        }
+
+        return (id, rev, projectName);
+    }
+
     private static Dictionary<string, object?> PatchOp(string op, string path, object? value) => new()
     {
         ["op"] = op,
@@ -794,6 +1026,7 @@ public sealed class AdoClient(HttpClient http)
             Notes = AdoMapper.HtmlToText(FieldString(fields, "System.Description")),
             Type = FieldString(fields, "System.WorkItemType") ?? "Task",
             State = state ?? "New",
+            ProjectName = string.IsNullOrWhiteSpace(projectName) ? null : projectName,
             AdoPriority = FieldInt(fields, "Microsoft.VSTS.Common.Priority"),
             IterationPath = FieldString(fields, "System.IterationPath"),
             AssignedTo = ReadAssignedTo(fields),

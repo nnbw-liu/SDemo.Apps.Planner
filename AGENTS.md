@@ -15,6 +15,17 @@
 - 未结束筛选（2026-11-19）：`TodoQuery.Status=unfinished` = 状态不是 closed / canceled；任务页默认「未结束」，下拉含「全部状态」，搜索时仍切到 all；`PlannerService.NormalizeStatus` 白名单同步。
 - 样式（2026-11-19）：`app.css` 增加 `.attach-pick*` 与 `.markdown-body`（全部走主题 token）。
 
+✅ **v0.9 已实现（构建 + 单元测试通过；ADO 环境暂不可连，未实机验证）**：ADO 上传 / 关联 / 只同步状态。
+
+- 上传（v0.9）：新建任务弹窗在「项目已绑定云端」时显示「同时上传到 Azure DevOps」；保存落库后调 `AdoImportService.UploadTodoAsync`，失败只影响 Toast，不回滚本地任务。任务详情对未关联任务也提供「上传为新工作项」。
+- 客户端（v0.9）：`AdoClient.CreateWorkItemAsync` POST `.../workitems/${类型}?api-version=5.1`，类型候选 `AdoMapper.ToAdoWorkItemTypes`（Bug→Bug/缺陷，其它→任务/Task）× 状态候选，400/404 逐个降级，最后退化为不带 `System.State`；成功解析 id / rev / `System.TeamProject`。
+- 关联（v0.9）：详情「云端工作项」输入 ADO 编号 → `AdoImportService.LinkTodoAsync`；校验编号存在、云端项目与绑定一致、未被别的本地任务占用，只写 `external_*`，不改本地标题 / 内容 / 项目，也不涨 `revision`。
+- 只同步状态（v0.9）：`AdoClient.UpdateWorkItemStatusAsync` 只 PATCH `test /rev` + `replace /fields/System.State`；`PushStatusAsync` 先 GET 最新 rev（409 最多重读一次），因此云端改过标题 / 说明也能推状态，不会覆盖它们。
+- 数据（v0.9）：`AdoWorkItemDto.ProjectName`；`PlannerService.GetTodoByExternal` 供关联查重；`MarkAdoPushed` 仍是唯一写 `external_*` 的入口。
+- 界面（v0.9）：任务详情新增「云端工作项」段（已关联：ADO 链接 + rev + 同步到云端 / 仅同步状态 / 从云端同步；未关联：编号 + 关联已有 / 上传为新工作项）；`TaskEditor` 注入 `AdoImportService` 判断绑定。
+- 测试（v0.9）：`tests/SDemo.Planner.Tests/AdoWriteTests.cs` 10 个用例；全量 136 通过。
+- 验证记录：[docs/planner-v09.md](docs/planner-v09.md)。
+
 ✅ **v0.8 已实现（构建 + 单元测试通过）**：任务阶段进展（progress）。
 - 进展（v0.8）：`todo_progress` 表（迁移 `ProgressV8`），一条 = 一个阶段；`title`（≤80）、`notes`（≤2000）、可选 `percent` 0–100、`artifacts_json`；`revision` 独立并发，软删 + 回收站。
 - 服务（v0.8）：`PlannerService.Progress.cs` 提供 `ListTodoProgress / AddTodoProgress / UpdateTodoProgress / DeleteTodoProgress`；`TodoProgressPatch` 是合并语义（`ClearNotes/ClearPercent/ClearArtifacts` 显式清空）；超 100 条报 `LIMIT`，revision 不符报 `CONFLICT`。
@@ -88,7 +99,7 @@
 - 组件（v4.3 前）曾于 2026-11-07 移除，2026-11-08 起以 DesktopAssembly Hub 组件（`/widgets/*`）恢复；当前为日历 + 任务。宿主拉起时直接显示主窗口，组件窗口由宿主另行拉起。
 - 验证记录：[docs/planner-v05.md](docs/planner-v05.md)、[docs/planner-v4.md](docs/planner-v4.md)、[docs/planner-v3.md](docs/planner-v3.md)、[docs/planner-v2.md](docs/planner-v2.md)、[docs/p2-verification.md](docs/p2-verification.md)；v1 设计：[docs/planner-design.md](docs/planner-design.md)。
 
-未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` / `attachment_*` / `progress_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；日程拖拽/重复规则；托盘开机自启；ADO 反向写入（事序改动回推 ADO）、ADO 评论/附件同步、`ado_*` MCP 工具；附件在线预览。
+未做：`project_*` / `iteration_*` / `routine_*` / `holiday_*` / `attachment_*` / `progress_*` MCP 工具；`SetTodoStatus` / `PostponeTodo` / `CompleteIteration` 的 MCP 工具；日程拖拽/重复规则；托盘开机自启；ADO 批量上传 / 状态自动回推 / 取消关联 / 指派与迭代字段 / 评论与附件同步、`ado_*` MCP 工具；附件在线预览。
 P5：outbox 合并、ICS 只读订阅。
 
 ## 目录
@@ -129,6 +140,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 
 | 改什么 | 读 |
 | --- | --- |
+| **v0.9 ADO 上传 / 关联 / 只同步状态** | [docs/planner-v09.md](docs/planner-v09.md) |
 | **任务阶段进展** | [docs/planner-v08.md](docs/planner-v08.md) |
 | **任务桌面组件** | [docs/planner-widget-tasks.md](docs/planner-widget-tasks.md) |
 | **v0.7 拉取 ADO 项目 / 附件** | [docs/planner-v07.md](docs/planner-v07.md) |
@@ -209,6 +221,8 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 进展（v0.8）不走 `todo.revision`：列表/详情里的 `ProgressCount/ProgressPercent/LatestProgressTitle` 是 `MapTodos` 现算的，改进展不会让任务行编辑弹窗报 `CONFLICT`；要改任务本身仍按任务 `revision`。
 - 进展删软删后 7 天由 `PurgeExpiredProgress` 物理清理，进展附件随后被 `PurgeExpired` 的孤儿扫描删文件；删除任务时 `ApplyTodoWrites` 的 purge 分支级联清进展行，不要另写一套。
 - 新增附件 owner（如进展）必须同步三处：`AttachmentOwnerTypes.IsSupported`、`EnsureAttachmentOwner`、`AttachmentOwnerExists`，否则附件要么挂不上、要么删任务后文件永远不回收。
+- ADO 上传 / 关联只写 `external_*`（`MarkAdoPushed` → `UpdateTodoExternal`），不涨任务 `revision`、不写 `op_log`；本地内容不会被云端快照覆盖，别在这两条路径上调 `ApplyAdoWorkItem`。
+- 「仅同步状态」不能拿本地 `ExternalRev` 直接 PATCH：云端可能已改过，必须先 `FetchWorkItemAsync` 取最新 rev，再只 PATCH `System.State`（`UpdateWorkItemStatusAsync`），否则会盖掉云端标题/说明。
 
 ## 不要读
 
