@@ -6,7 +6,14 @@
 
 事序（sdemo.planner）：项目 → 大迭代 → 小迭代 → 工作项（任务/Bug/调研/杂务）；日常习惯与定时提醒；待办与日程同库不同表；AI 草稿审阅后入库；ICS 导出与只读订阅。
 
-## 现状（2026-11-16）
+## 现状（2026-11-19）
+
+✅ **2026-11-19 修复与增强（构建 + 127 个单元测试通过）**：附件上传、Markdown 渲染、未结束筛选。
+- 附件上传（2026-11-19）：`AttachmentPanel` 改用 Blazor `<InputFile>` 浏览器文件选择，不再调用 `IPlatformFiles.PickFile`；任务详情、完成弹窗、项目详情、迭代编辑、进展均可上传；新建任务在 `TaskEditor` 里暂存到 `%TEMP%\sdemo-planner\uploads`，`CreateTodos` 成功后再 `AddAttachment`，失败只 Toast，不回滚任务。此前所有入口传 `OwnerType="AttachmentOwnerTypes.Todo"` 未加 `@`，服务收到的是字面量，导致附件一直报「只能挂在任务…」；统一改为 `@AttachmentOwnerTypes.*`。
+- 任务编辑（2026-11-19）：`TaskEditor` 新增「任务附件」段；编辑态直接挂当前任务，新建态暂存。
+- Markdown（2026-11-19）：`MarkdownRenderer`（Markdig 0.44.0，`UseAdvancedExtensions` + `SoftlineBreakAsHardlineBreak` + `DisableHtml`）与 `MarkdownView`；任务说明、完成说明、进展备注、项目说明均按 Markdown 渲染；编辑框占位提示支持 Markdown。
+- 未结束筛选（2026-11-19）：`TodoQuery.Status=unfinished` = 状态不是 closed / canceled；任务页默认「未结束」，下拉含「全部状态」，搜索时仍切到 all；`PlannerService.NormalizeStatus` 白名单同步。
+- 样式（2026-11-19）：`app.css` 增加 `.attach-pick*` 与 `.markdown-body`（全部走主题 token）。
 
 ✅ **v0.8 已实现（构建 + 单元测试通过）**：任务阶段进展（progress）。
 - 进展（v0.8）：`todo_progress` 表（迁移 `ProgressV8`），一条 = 一个阶段；`title`（≤80）、`notes`（≤2000）、可选 `percent` 0–100、`artifacts_json`；`revision` 独立并发，软删 + 回收站。
@@ -158,7 +165,7 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 关闭主窗口是 `Hide()` 到托盘（`allowClose=false`），不是退出，提醒 tick 继续；`ExitApp()` / 托盘「退出」才真退出并清理 `Shell_NotifyIcon`。
 - 托盘用 `TrayIcon.cs` 的 Win32 `Shell_NotifyIcon` + `HwndSource`；不要给 Host 加 `<UseWindowsForms>`，会和 WPF 的 `Application`/`MessageBox`/`Brushes`/`Cursors`/`Color`/`KeyEventArgs` 产生 `CS0104`。
 - 工作项终态是 `done/verified/closed/canceled`；项目/迭代完成统计只算 `done/verified/closed`，`canceled` 排除；终态写 `completed_at`，非终态清空。
-- 完成说明/产物走 `SetTodoStatus`，不要只改 `TodoPatch.Status`；任务列表默认 `Status=all`，搜索时也重置 all。
+- 完成说明/产物走 `SetTodoStatus`，不要只改 `TodoPatch.Status`；任务列表默认 `Status=unfinished`（未结束），搜索时切回 `all`。
 - 自定义下拉统一用 `Components/SelectBox.razor`，别新增原生 `<select>`；多个下拉的互斥由 `PlannerUi.SelectOpened` 协调。收起靠 `planner.js` 的 `watchOutside`（document pointerdown/Escape/scroll），**不要再加透明 backdrop 或把 SelectBox 包进 `<label>`**，否则点击会转回触发器导致收不起来。
 - 托盘菜单是 `XamlReader.Parse` 的自绘模板；三段 XAML 都要带 `xmlns:x`，否则启动时抛 `XamlParseException`「前缀 x 未映射」。
 - 自绘标题栏：`WindowStyle=None` + `WindowChrome`，`CaptionHeight=0` 时窗口按钮才能收到点击；拖拽靠 `TitleBar_MouseLeftButtonDown` 里 `DragMove()`。无边框最大化会盖住任务栏，必须在 `WndProc` 处理 `WM_GETMINMAXINFO` 把尺寸钉在 `rcWork`。默认 1180×740，别调回 1280×840——150% 缩放下它等于工作区，最大化看不出变化。
@@ -193,6 +200,9 @@ dotnet run --project src\SDemo.App.Planner.Host -- --headless --instance=dev --d
 - 组件登记在 `HubServer.BuildInfo()` 与 `WriteConnectionFile()` 两处 `widgets` 数组，新增组件必须同步，否则宿主发现不到；不要再加 `widget.json`。
 - `HubServer` 的 DI 要跟桌面壳对齐：`AdoClient` / `AdoImportService` / `IPlatformFiles` 漏注册时，组件里打开 `TaskDetailDialog`（含附件段）会直接报「无法注入服务」；Hub 侧必须注册 `NullPlatformFiles`，组件不弹桌面对话框。
 - 附件目录默认值在 `PlannerPaths.AttachmentsDirectory`，但实际根目录以 `app_setting` 的 `attachments.rootDir` 为准；测试里先 `SaveAttachmentSettings` 指到临时目录，否则会写到真实 `%APPDATA%`。
+- 附件上传走 Blazor `<InputFile>`（`AttachmentPanel`），`IPlatformFiles` 只负责打开 / 资源管理器定位；新建任务没有 id，先暂存到 `%TEMP%\sdemo-planner\uploads`，`CreateTodos` 拿到 id 后再 `AddAttachment`，别在新建前写 attachment 行。
+- 任务说明 / 完成说明 / 进展备注 / 项目说明一律用 `MarkdownView` / `MarkdownRenderer` 渲染；新增正文展示别直接 `@text`，否则 Markdown 会变纯文本。
+- Razor 组件参数传表达式时必须写 `@`：`Text="@todo.Notes"`、`OwnerType="@AttachmentOwnerTypes.Todo"`。写成 `Text="todo.Notes"` 会变成字面量字符串（`MarkdownView` 会显示 `todo.Notes`），`OwnerType="AttachmentOwnerTypes.Todo"` 会让附件服务收到 `"AttachmentOwnerTypes.Todo"` 并报「附件只能挂在任务、项目、迭代或任务进展上」。`Icon Name="upload"` 这类纯文本参数是故意的字面量，不要加 `@`。
 - 附件迁移只在 `attachments.previousRootDir` 与当前目录不同时生效；全部成功才清空 previous（`NeedsMigration=false`），有失败要保留以便重试。
 - `dotnet ef migrations add` 用 Storage 作 startup project（EF Design 包在 Storage），并加 `--configuration Release`；用 Host 作 startup 且 Debug 输出被运行中的事序锁住时会报 MSB3027/MSB3021。
 - 附件单文件上限 100 MB 在 `AddAttachment` 入口和 UI 提示两处体现，改上限只改 `PlannerConstants.MaxAttachmentBytes`。

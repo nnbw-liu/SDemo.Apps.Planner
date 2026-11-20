@@ -42,8 +42,8 @@ public sealed record WriteContext
 public sealed record TodoQuery
 {
     /// <summary>
-    /// open/active = 未完成（新建+进行中）；new = 仅新建；doing / done / verified / closed / canceled；
-    /// all / deleted。
+    /// unfinished = 未结束（除 closed / canceled 之外都算）；open/active = 未完成（新建+进行中）；
+    /// new = 仅新建；doing / done / verified / closed / canceled；all / deleted。
     /// </summary>
     public string Status { get; init; } = "open";
 

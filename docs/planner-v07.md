@@ -52,14 +52,16 @@
 
 `AttachmentOwnerTypes`：`todo` / `project` / `iteration`。界面入口：
 
+- 新建 / 编辑任务：`TaskEditor` 底部的 **任务附件** 段（新建时先暂存，保存任务拿到 id 后统一上传）；
 - 任务详情：`TaskDetailDialog` 的 **附件** 段（标签之后、操作记录之前）；
 - 完成任务：`CompleteTaskDialog` 的 **完成附件** 段（产物 / 链接之后），完成时顺手把产物、截图、构建结果传上来；
 - 项目详情：项目 hero 之后的 **项目附件**；
 - 迭代编辑：只在**编辑已有迭代**时出现 **迭代附件**（新建迭代还没有 id，不能先挂附件）。
 
-组件是 `src/SDemo.App.Planner.Web/Components/AttachmentPanel.razor`，
-桌面端用 `IPlatformFiles` 打开文件对话框 / 打开文件 / 在资源管理器中定位；
-Hub 组件（`/widgets/*`）注册 `NullPlatformFiles`，不弹桌面对话框，只读列表。
+组件是 `src/SDemo.App.Planner.Web/Components/AttachmentPanel.razor`。
+上传走 Blazor `<InputFile>`（浏览器文件选择），不再依赖 WPF 打开文件对话框，因此新建、编辑、完成任务弹窗里都能用；
+`IPlatformFiles` 只负责「用默认程序打开 / 在资源管理器中定位」。
+Hub 组件（`/widgets/*`）注册 `NullPlatformFiles`，仍可上传与查看列表，只是不能打开本地文件。
 
 ### 目录与迁移
 

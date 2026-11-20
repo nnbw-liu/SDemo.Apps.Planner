@@ -78,7 +78,7 @@
 
     @if (Ui.EditingIteration is { } editing)
     {
-        <AttachmentPanel OwnerType="AttachmentOwnerTypes.Iteration" OwnerId="@editing.Id" Heading="迭代附件" />
+        <AttachmentPanel OwnerType="@AttachmentOwnerTypes.Iteration" OwnerId="@editing.Id" Heading="迭代附件" />
     }
     </ChildContent>
 

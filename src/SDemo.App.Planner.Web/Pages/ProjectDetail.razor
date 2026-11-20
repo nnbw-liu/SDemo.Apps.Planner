@@ -45,7 +45,7 @@ else
             }
             @if (!string.IsNullOrWhiteSpace(_project.Description))
             {
-                <p class="project-desc">@_project.Description</p>
+                <div class="project-desc"><MarkdownView Text="@_project.Description" /></div>
             }
             <div class="hero-actions">
                 <button class="btn btn-primary" @onclick="() => Ui.OpenTask(projectId: _project.Id)">
@@ -95,7 +95,7 @@ else
         </div>
     </section>
 
-    <AttachmentPanel OwnerType="AttachmentOwnerTypes.Project" OwnerId="@_project.Id" Heading="项目附件" />
+    <AttachmentPanel OwnerType="@AttachmentOwnerTypes.Project" OwnerId="@_project.Id" Heading="项目附件" />
 
     <div class="section-head">
         <div>

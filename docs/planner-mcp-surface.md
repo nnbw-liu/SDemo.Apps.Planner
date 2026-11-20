@@ -78,7 +78,7 @@ MainAgent 侧的 server 注册项存 `settings.json`：
   "inputSchema": {
     "type": "object",
     "properties": {
-      "status": { "type": "string", "enum": ["open", "doing", "done", "all"], "default": "open" },
+      "status": { "type": "string", "enum": ["unfinished", "open", "doing", "done", "all"], "default": "open" },
       "listId": { "type": "string" },
       "dueBefore": { "type": "string", "format": "date-time" },
       "tag": { "type": "string" },
@@ -88,6 +88,8 @@ MainAgent 侧的 server 注册项存 `settings.json`：
   }
 }
 ```
+
+`status=unfinished` 表示「未结束」：除 `closed` / `canceled` 之外的状态都返回（含 `done` / `verified`）；`open` / `active` 仍是「未完成」（新建 + 进行中）。
 
 返回 `items[]`，每项含 `id / title / status / priority / dueAt / listId / revision / source / sourceExcerpt`。
 

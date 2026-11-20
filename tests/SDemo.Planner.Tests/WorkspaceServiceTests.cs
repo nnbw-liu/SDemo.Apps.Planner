@@ -390,6 +390,39 @@ public sealed class WorkspaceServiceTests
     }
 
     [Fact]
+    public void TodoQuery_Unfinished_ExcludesClosedAndCanceled()
+    {
+        using var host = new TestHost();
+        var open = host.Service.CreateTodos(
+            [new TodoCreateInput { Title = "还在做" }],
+            WriteContext.Manual()).Items.Single();
+        var done = host.Service.CreateTodos(
+            [new TodoCreateInput { Title = "已完成待验证" }],
+            WriteContext.Manual()).Items.Single();
+        var closed = host.Service.CreateTodos(
+            [new TodoCreateInput { Title = "已关闭" }],
+            WriteContext.Manual()).Items.Single();
+        var canceled = host.Service.CreateTodos(
+            [new TodoCreateInput { Title = "已取消" }],
+            WriteContext.Manual()).Items.Single();
+
+        host.Service.SetTodoStatus(done.Id, done.Revision, TodoStatus.Done, null, [], WriteContext.Manual());
+        host.Service.SetTodoStatus(closed.Id, closed.Revision, TodoStatus.Closed, null, [], WriteContext.Manual());
+        host.Service.SetTodoStatus(canceled.Id, canceled.Revision, TodoStatus.Canceled, null, [], WriteContext.Manual());
+
+        var unfinished = host.Service.ListTodos(new TodoQuery { Status = "unfinished" });
+        Assert.Equal(2, unfinished.Count);
+        Assert.Contains(unfinished, t => t.Id == open.Id);
+        Assert.Contains(unfinished, t => t.Id == done.Id);
+        Assert.DoesNotContain(unfinished, t => t.Id == closed.Id);
+        Assert.DoesNotContain(unfinished, t => t.Id == canceled.Id);
+
+        var activeOnly = host.Service.ListTodos(new TodoQuery { Status = "active" });
+        Assert.Single(activeOnly);
+        Assert.Equal(open.Id, activeOnly[0].Id);
+    }
+
+    [Fact]
     public void CompleteIteration_MarksChildrenDone_AndReopenRestoresParent()
     {
         using var host = new TestHost();

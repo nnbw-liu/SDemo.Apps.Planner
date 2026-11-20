@@ -1199,10 +1199,10 @@ public sealed partial class PlannerService
         var value = (status ?? "open").Trim().ToLowerInvariant();
         return value switch
         {
-            "open" or "active" or "new" or "doing" or "done" or "verified" or "closed"
+            "open" or "active" or "unfinished" or "new" or "doing" or "done" or "verified" or "closed"
                 or "canceled" or "all" or "deleted" => value,
             _ => throw PlannerException.Validation(
-                "status 只能是 open / active / new / doing / done / verified / closed / canceled / all / deleted"),
+                "status 只能是 open / active / unfinished / new / doing / done / verified / closed / canceled / all / deleted"),
         };
     }
 

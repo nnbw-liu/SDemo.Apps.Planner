@@ -122,7 +122,7 @@
                 </div>
                 @if (!string.IsNullOrWhiteSpace(todo.Notes))
                 {
-                    <p class="task-detail-notes">@todo.Notes</p>
+                    <MarkdownView Text="@todo.Notes" />
                 }
                 else
                 {
@@ -176,7 +176,7 @@
             {
                 <section class="task-detail-section">
                     <span class="eyebrow">完成说明</span>
-                    <p class="task-detail-notes">@todo.CompletionNote</p>
+                    <MarkdownView Text="@todo.CompletionNote" />
                 </section>
             }
 
@@ -210,7 +210,7 @@
                 </section>
             }
 
-            <AttachmentPanel OwnerType="AttachmentOwnerTypes.Todo" OwnerId="@todo.Id" />
+            <AttachmentPanel OwnerType="@AttachmentOwnerTypes.Todo" OwnerId="@todo.Id" />
 
             <section class="task-detail-section">
                 <span class="eyebrow">操作记录</span>

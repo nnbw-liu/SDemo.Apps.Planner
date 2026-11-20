@@ -60,7 +60,7 @@ public static class McpToolCatalog
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "status": { "type": "string", "enum": ["open", "doing", "done", "all"], "default": "open" },
+            "status": { "type": "string", "enum": ["unfinished", "open", "doing", "done", "all"], "default": "open" },
             "listId": { "type": "string" },
             "dueBefore": { "type": "string", "format": "date-time", "description": "ISO-8601，必须带时区偏移" },
             "dueAfter": { "type": "string", "format": "date-time", "description": "ISO-8601，必须带时区偏移" },

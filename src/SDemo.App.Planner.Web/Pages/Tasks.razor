@@ -129,7 +129,7 @@ else
     [Inject]
     private NavigationManager Nav { get; set; } = default!;
 
-    private string _status = "all";
+    private string _status = "unfinished";
     private WorkItemKind? _kind;
     private string? _projectId;
     private TodoSort _sort = TodoSort.Status;
@@ -142,6 +142,7 @@ else
 
     private static readonly IReadOnlyList<SelectOption<string>> StatusOptions =
     [
+        new("unfinished", "未结束"),
         new("all", "全部状态"),
         new("active", "未完成"),
         new("new", "新建"),
@@ -274,7 +275,7 @@ else
 
     private void ResetFilters()
     {
-        _status = "all";
+        _status = "unfinished";
         _kind = null;
         _projectId = null;
         _sort = TodoSort.Status;

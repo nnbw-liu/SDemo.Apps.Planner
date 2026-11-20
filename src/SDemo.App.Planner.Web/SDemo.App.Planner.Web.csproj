@@ -14,6 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Markdig" Version="0.44.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SDemo.App.Planner.Contracts\SDemo.App.Planner.Contracts.csproj" />
     <ProjectReference Include="..\SDemo.App.Planner.Core\SDemo.App.Planner.Core.csproj" />
   </ItemGroup>

@@ -1,20 +1,20 @@
 @inherits PlannerPageBase
 @inject IPlatformFiles Files
-@* 任务 / 项目 / 迭代共用的一块附件区：文件本体在可配置目录，元数据在库。 *@
-@if (!string.IsNullOrEmpty(OwnerId))
+@* 任务 / 项目 / 迭代 / 进展共用的一块附件区：文件本体在可配置目录，元数据在库。
+   上传走浏览器文件选择（InputFile），不再依赖 WPF 对话框，因此新建、编辑、完成任务时都能用。 *@
+@if (ShowPanel)
 {
     <section class="task-detail-section attach-panel">
         <div class="attach-head">
             <div class="attach-head-text">
                 <span class="eyebrow">@Heading</span>
-                <span class="attach-count">
-                    @(_items.Count == 0 ? "还没有附件" : $"{_items.Count} 个 · {FormatSize(_items.Sum(item => item.SizeBytes))}")
-                </span>
+                <span class="attach-count">@CountText</span>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm"
-                    disabled="@(!Files.Available || _busy)" @onclick="PickAndAdd">
-                <Icon Name="upload" Size="14" /> 添加附件
-            </button>
+            <label class="btn btn-ghost btn-sm attach-pick @(_busy ? "is-busy" : "")"
+                   aria-disabled="@_busy">
+                <Icon Name="upload" Size="14" /> @(_busy ? "上传中…" : "添加附件")
+                <InputFile class="attach-pick-input" OnChange="OnFileSelected" disabled="@_busy" />
+            </label>
         </div>
 
         @if (_error is not null)
@@ -22,12 +22,38 @@
             <p class="attach-error">@_error</p>
         }
 
-        @if (_items.Count == 0)
+        @if (IsStaged)
+        {
+            @if (Staged is null || Staged.Count == 0)
+            {
+                <p class="attach-empty">
+                    点「添加附件」选文件，保存任务后一起上传。单文件上限 @MaxMegabytes MB。
+                </p>
+            }
+            else
+            {
+                <ul class="attach-list">
+                    @foreach (var item in Staged)
+                    {
+                        <li class="attach-row">
+                            <span class="attach-icon"><Icon Name="file" Size="16" /></span>
+                            <span class="attach-name attach-name-static">@item.FileName</span>
+                            <span class="attach-meta">@FormatSize(item.SizeBytes) · 待上传</span>
+                            <span class="attach-actions">
+                                <button type="button" class="icon-btn" title="移除这个附件"
+                                        @onclick="() => RemoveStaged(item)">
+                                    <Icon Name="x" Size="14" />
+                                </button>
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+        else if (_items.Count == 0)
         {
             <p class="attach-empty">
-                @(Files.Available
-                    ? $"点「添加附件」选文件。附件按条目归集，单文件上限 {MaxMegabytes} MB。"
-                    : "当前宿主不支持添加附件，请在主窗口里操作。")
+                点「添加附件」选文件。附件按条目归集，单文件上限 @MaxMegabytes MB。
             </p>
         }
         else
@@ -65,7 +91,13 @@
             </ul>
         }
 
-        <p class="attach-note">单文件上限 @MaxMegabytes MB · 存放目录在「设置 → 附件」，改目录后可一键迁移</p>
+        <p class="attach-note">
+            单文件上限 @MaxMegabytes MB · 存放目录在「设置 → 附件」，改目录后可一键迁移
+            @if (IsStaged)
+            {
+                <span> · 新建任务时先暂存，点「保存任务」后随任务一起入库</span>
+            }
+        </p>
     </section>
 }
 
@@ -73,11 +105,16 @@
     [Parameter, EditorRequired]
     public string OwnerType { get; set; } = string.Empty;
 
-    [Parameter, EditorRequired]
+    /// <summary>挂在已有对象上时填写；新建任务还没 id 时留空，配合 <see cref="Staged"/> 暂存。</summary>
+    [Parameter]
     public string OwnerId { get; set; } = string.Empty;
 
     [Parameter]
     public string Heading { get; set; } = "附件";
+
+    /// <summary>新建任务时的暂存列表；由 <c>TaskEditor</c> 持有并在保存后上传。</summary>
+    [Parameter]
+    public List<StagedAttachment>? Staged { get; set; }
 
     private IReadOnlyList<AttachmentDto> _items = [];
     private string? _error;
@@ -85,12 +122,33 @@
     private string? _loadedFor;
     private bool _busy;
 
-    private static int MaxMegabytes => (int)(PlannerConstants.MaxAttachmentBytes / (1024 * 1024));
+    private static long MaxBytes => PlannerConstants.MaxAttachmentBytes;
+
+    private static int MaxMegabytes => (int)(MaxBytes / (1024 * 1024));
+
+    private bool IsStaged => Staged is not null && string.IsNullOrEmpty(OwnerId);
+
+    private bool ShowPanel => IsStaged || !string.IsNullOrEmpty(OwnerId);
 
     private string OwnerKey => OwnerType + "|" + OwnerId;
 
+    private string CountText => IsStaged
+        ? (Staged is null || Staged.Count == 0
+            ? "还没有附件"
+            : $"{Staged.Count} 个 · {FormatSize(Staged.Sum(item => item.SizeBytes))}（待上传）")
+        : (_items.Count == 0
+            ? "还没有附件"
+            : $"{_items.Count} 个 · {FormatSize(_items.Sum(item => item.SizeBytes))}");
+
     protected override void OnParametersSet()
     {
+        if (IsStaged)
+        {
+            _items = [];
+            _loadedFor = OwnerKey;
+            return;
+        }
+
         if (!string.Equals(_loadedFor, OwnerKey, StringComparison.Ordinal))
         {
             _confirmId = null;
@@ -100,7 +158,7 @@
 
     protected override void Reload()
     {
-        if (string.IsNullOrEmpty(OwnerId))
+        if (string.IsNullOrEmpty(OwnerId) || IsStaged)
         {
             _items = [];
             return;
@@ -120,25 +178,34 @@
         _loadedFor = OwnerKey;
     }
 
-    private void PickAndAdd()
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
-        if (!Files.Available)
-        {
-            _error = "当前宿主不支持选文件，请从主窗口添加附件。";
-            return;
-        }
-
-        var source = Files.PickFile("选择要添加的附件");
-        if (string.IsNullOrWhiteSpace(source))
+        if (_busy || e.FileCount == 0)
         {
             return;
         }
 
         _busy = true;
         _error = null;
+        StagedAttachment? staged = null;
         try
         {
-            var added = Service.AddAttachment(OwnerType, OwnerId, source);
+            var file = e.File;
+            if (file.Size > MaxBytes)
+            {
+                _error = $"单个附件不能超过 {MaxMegabytes} MB，这个文件是 {FormatSize(file.Size)}。";
+                return;
+            }
+
+            staged = await SaveTempFileAsync(file);
+            if (IsStaged)
+            {
+                Staged!.Add(staged);
+                staged = null; // 所有权交给暂存列表，关闭弹窗时再删。
+                return;
+            }
+
+            var added = Service.AddAttachment(OwnerType, OwnerId, staged.TempPath);
             Ui.Toast($"已添加附件「{added.FileName}」");
             Reload();
         }
@@ -156,12 +223,46 @@
         }
         finally
         {
+            staged?.DeleteFile();
             _busy = false;
         }
     }
 
+    private static async Task<StagedAttachment> SaveTempFileAsync(IBrowserFile file)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "sdemo-planner", "uploads", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var name = SanitizeTempFileName(file.Name);
+        var path = Path.Combine(directory, name);
+        try
+        {
+            await using var input = file.OpenReadStream(MaxBytes);
+            await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+            await input.CopyToAsync(output);
+        }
+        catch
+        {
+            TryDeleteTemp(path, directory);
+            throw;
+        }
+
+        return new StagedAttachment(name, path, new FileInfo(path).Length);
+    }
+
+    private void RemoveStaged(StagedAttachment item)
+    {
+        item.DeleteFile();
+        Staged?.Remove(item);
+    }
+
     private void Open(AttachmentDto item)
     {
+        if (!Files.Available)
+        {
+            _error = "当前宿主不支持打开本地文件，请在主窗口里操作。";
+            return;
+        }
+
         var path = Service.ResolveAttachmentPath(item.Id);
         if (path is null)
         {
@@ -177,6 +278,12 @@
 
     private void Reveal(AttachmentDto item)
     {
+        if (!Files.Available)
+        {
+            _error = "当前宿主不支持打开本地目录，请在主窗口里操作。";
+            return;
+        }
+
         var path = Service.ResolveAttachmentPath(item.Id);
         if (path is null)
         {
@@ -210,6 +317,57 @@
         catch (PlannerException ex)
         {
             _error = ex.Message;
+        }
+    }
+
+    public override void Dispose()
+    {
+        // 关闭新建任务弹窗时把没来得及上传的临时文件清掉。
+        if (Staged is not null)
+        {
+            foreach (var item in Staged.ToList())
+            {
+                item.DeleteFile();
+            }
+        }
+
+        base.Dispose();
+    }
+
+    private static string SanitizeTempFileName(string name)
+    {
+        var trimmed = Path.GetFileName((name ?? string.Empty).Trim());
+        if (trimmed.Length == 0)
+        {
+            trimmed = "附件";
+        }
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var clean = new string(trimmed.Select(ch => invalid.Contains(ch) || char.IsControl(ch) ? '_' : ch).ToArray());
+        return clean.Length <= PlannerConstants.MaxAttachmentFileNameChars
+            ? clean
+            : clean[^PlannerConstants.MaxAttachmentFileNameChars..];
+    }
+
+    private static void TryDeleteTemp(string path, string directory)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: false);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
     }
 

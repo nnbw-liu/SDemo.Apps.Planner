@@ -158,6 +158,9 @@ public sealed partial class PlannerStore
 
         switch (filter.Status)
         {
+            case "unfinished":
+                query = query.Where(t => t.Status != "closed" && t.Status != "canceled");
+                break;
             case "open":
             case "active":
                 query = query.Where(t => t.Status == "open" || t.Status == "doing");

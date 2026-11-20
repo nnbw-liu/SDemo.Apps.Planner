@@ -1,0 +1,7 @@
+@* 只读 Markdown 展示。编辑态仍然用 textarea，避免把输入框换成富文本后难改。 *@
+<div class="markdown-body">@((MarkupString)MarkdownRenderer.ToHtml(Text))</div>
+
+@code {
+    [Parameter]
+    public string? Text { get; set; }
+}

@@ -68,7 +68,7 @@
 
                     @if (!string.IsNullOrWhiteSpace(item.Notes))
                     {
-                        <p class="progress-notes">@item.Notes</p>
+                        <MarkdownView Text="@item.Notes" />
                     }
 
                     @if (item.Artifacts.Count > 0)
@@ -104,7 +104,7 @@
 
                     @if (_attachmentsFor == item.Id)
                     {
-                        <AttachmentPanel OwnerType="AttachmentOwnerTypes.Progress"
+                        <AttachmentPanel OwnerType="@AttachmentOwnerTypes.Progress"
                                          OwnerId="@item.Id"
                                          Heading="阶段附件" />
                     }
@@ -142,7 +142,7 @@
             <label class="field field-full">
                 <span>这一步做了什么</span>
                 <textarea class="input textarea" rows="3" maxlength="@PlannerConstants.MaxProgressNotesChars"
-                          placeholder="完成了什么、卡在哪、下一步是什么…"
+                          placeholder="完成了什么、卡在哪、下一步是什么…（支持 Markdown）"
                           @bind="_notes"></textarea>
             </label>
             <label class="field field-full">
